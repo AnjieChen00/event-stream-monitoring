@@ -1,3 +1,5 @@
+import pickle
+
 class EventType:
     def __init__(self, event_type_name: str, event_report_time_granularity: int,
                  event_report_time_no_skipping: bool, event_report_time_no_skipping_granularity: str,
@@ -71,4 +73,31 @@ c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"},
                                     ("COUNT OVER", ("b1")): "DELETE b1",
                                     # ("COUNT UNDER", ("b1")): "WAIT"
                                     })
-# for this case, it seems that "TIME OVER" and "COUNT UNDER" is overlapping, and may be of business interest         
+# for this case, it seems that "TIME OVER" and "COUNT UNDER" is overlapping, and may be of business interest
+# 
+if __name__ == "__main__":
+
+    ################################### Save event type objects to a file
+    with open('event_type_objects.pkl', 'wb') as file:
+        pickle.dump(event_stream, file)
+
+    #################################### Load objects from the file
+    with open('event_type_objects.pkl', 'rb') as file:
+        loaded_objects = pickle.load(file)
+
+    #################################### Verify the loaded objects
+    for obj in loaded_objects:
+        print(obj.event_type_name)
+
+    #################################### Save contraint objects to a file
+    with open('constraint_objects.pkl', 'wb') as cfile:
+        pickle.dump([c1], cfile)
+
+    #################################### Load objects from the file
+    with open('constraint_objects.pkl', 'rb') as cfile:
+        cobjects = pickle.load(cfile)
+
+    ################################### Verify the loaded objects
+    for obj in cobjects:
+        # print(type(obj))
+        print(obj.event_type_name_1, obj.event_type_name_2)        
