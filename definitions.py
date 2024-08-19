@@ -1,6 +1,6 @@
 class EventType:
     def __init__(self, event_type_name: str, event_report_time_granularity: int,
-                 event_report_time_no_skipping: Bool, event_report_time_no_skipping_granularity: str,
+                 event_report_time_no_skipping: bool, event_report_time_no_skipping_granularity: str,
                  max_delay_scope: str, attribute_names: set, attributes: dict, unique: set):
         self.event_type_name = event_type_name
 
