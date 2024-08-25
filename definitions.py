@@ -100,4 +100,4 @@ if __name__ == "__main__":
     ################################### Verify the loaded objects
     for obj in cobjects:
         # print(type(obj))
-        print(obj.event_type_name_1, obj.event_type_name_2)        
+        print(obj.body_event_type_name, obj.head_event_type_name)        
