@@ -22,6 +22,7 @@ class EventType:
     def print_event_type(self):
         return
 
+# need to check if 2 event types has the same attributes, their datatypes should be consistent
 event_stream = [
     EventType("RentBike", 1, False, "NA",
               5,  attribute_names=set(["Bid", "Cid"]),  attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"])),
@@ -44,8 +45,8 @@ class Constraint:
         self.body_attributes = body_attributes
 
         self.min_delay, self.max_delay = min_delay, max_delay
-        # check if omparative_keyword is either "EARLIER" or "LATER"
-        self.omparative_keyword = comparative_keyword
+        # check if comparative_keyword is either "EARLIER" or "LATER"
+        self.comparative_keyword = comparative_keyword
         self.min_count, self.max_count = min_delay, max_delay
 
         self.head_event_label =  head_event_label
