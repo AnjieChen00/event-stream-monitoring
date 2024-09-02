@@ -1,4 +1,9 @@
 import pickle
+import ast
+
+def get_names(c):
+    return list(set([ node.id for node in ast.walk(ast.parse(c)) if isinstance(node, ast.Name)
+    ]))
 
 class EventType:
     def __init__(self, event_type_name: str, event_report_time_granularity: int,
@@ -21,13 +26,6 @@ class EventType:
 
     def print_event_type(self):
         return
-
-event_stream = [
-    EventType("RentBike", 1, False, "NA",
-              5,  attribute_names=set(["Bid", "Cid"]),  attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"])),
-    EventType("ReturnBike", 1, False, "NA",
-              5,  attribute_names=set(["Bid", "Cid"]), attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"]))
-]
 
 # IF body THEN head
 # head: ignore current
@@ -65,7 +63,41 @@ class Constraint:
         return
 
 
-c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"}, 
+class Rule:
+    def __init__(self, rule_id:str, body:list, head:list):
+        # self-assigned rule_id during parsing.
+        self.rule_id = rule_id
+        # body and head are combinations of event type objects and arithmetic atoms
+        self.body = body
+        self.head = head
+
+    def __str__(self):
+        return str(self.body) + " --> " + str(self.head) 
+
+    def __repr__(self):
+        return str(self.body) + " --> " + str(self.head) 
+
+class ArithmeticAtom:
+    def __init__(self, expression=True, operator=[], terms=[]):
+        self.expression = expression
+        self.operator = operator
+        self.terms = get_names(str(expression)) # could be parsed using some other way
+
+    def __repr__(self):
+        return str(self.expression)
+    
+    def __str__(self):
+        return str(self.expression)
+
+
+if __name__ == "__main__":
+    event_stream = [
+    EventType("RentBike", 1, False, "NA",
+              5,  attribute_names=set(["Bid", "Cid"]),  attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"])),
+    EventType("ReturnBike", 1, False, "NA",
+              5,  attribute_names=set(["Bid", "Cid"]), attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"]))
+    ]
+    c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"}, 
                 1, 1440, "LATER", 1, 1, 
                 "b1", "ReturnBike", {"Bid": "x", "Cid": "y"},
                 violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
@@ -73,9 +105,7 @@ c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"},
                                     ("COUNT OVER", ("b1")): "DELETE b1",
                                     # ("COUNT UNDER", ("b1")): "WAIT"
                                     })
-# for this case, it seems that "TIME OVER" and "COUNT UNDER" is overlapping, and may be of business interest
-# 
-if __name__ == "__main__":
+    # for this case, it seems that "TIME OVER" and "COUNT UNDER" is overlapping, and may be of business interest
 
     ################################### Save event type objects to a file
     with open('event_type_objects.pkl', 'wb') as file:
@@ -100,4 +130,12 @@ if __name__ == "__main__":
     ################################### Verify the loaded objects
     for obj in cobjects:
         # print(type(obj))
-        print(obj.body_event_type_name, obj.head_event_type_name)        
+        print(obj.body_event_type_name, obj.head_event_type_name)
+    
+    test = ArithmeticAtom("x1 + 1 <= x2")
+    print(test.expression)
+    print(test.operator)
+    print(test.terms)
+
+
+            
