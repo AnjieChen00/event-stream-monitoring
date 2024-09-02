@@ -1,6 +1,9 @@
 import sqlite3
+
+from nbclient.client import timestamp
+
 from helper import connect_sqlite_db
-from definitions import EventType, event_stream, Constraint
+from definitions import EventType, event_stream, Constraint, Rule, EventAtom, ArithmeticAtom
 
 cursor = connect_sqlite_db()
 
@@ -38,11 +41,16 @@ def create_event_table(EventTypeList=event_stream):
         print(f"Error: {e}")
     return
 
-def create_body_assign(r):
+r = Rule(rule_id=1,
+         body=[EventAtom("RentBike", terms=["Bid", "Cid"], timestamp_variable="x")],
+         head=[EventAtom("RentBike", terms=["Bid", "Cid"], timestamp_variable="y"),
+               ArithmeticAtom(left_term="y", constant=-24, comparative_operator="<=", right_term="x")])
+
+def create_body_assignment(r):
     '''
     r need to be a rule class
     '''
-    pass
+
 
 if __name__ == '__main__':
     create_event_table()
