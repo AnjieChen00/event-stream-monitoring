@@ -28,7 +28,10 @@ class EventType:
     def print_event_type(self):
         return
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
 # IF body THEN head
 # head: ignore current
 class Constraint:
@@ -66,7 +69,11 @@ class Constraint:
 
 
 class Rule:
+<<<<<<< HEAD
     def __init__(self, rule_id: str, body: list, head: list):
+=======
+    def __init__(self, rule_id:str, body:list, head:list):
+>>>>>>> main
         # self-assigned rule_id during parsing.
         self.rule_id = rule_id
         # body and head are combinations of event type objects and arithmetic atoms
@@ -74,27 +81,43 @@ class Rule:
         self.head = head
 
     def __str__(self):
+<<<<<<< HEAD
         return str(self.body) + " --> " + str(self.head)
 
     def __repr__(self):
         return str(self.body) + " --> " + str(self.head)
 
+=======
+        return str(self.body) + " --> " + str(self.head) 
+
+    def __repr__(self):
+        return str(self.body) + " --> " + str(self.head) 
+>>>>>>> main
 
 class ArithmeticAtom:
     def __init__(self, expression=True, operator=[], terms=[]):
         self.expression = expression
         self.operator = operator
+<<<<<<< HEAD
         self.terms = get_names(str(expression))  # could be parsed using some other way
 
     def __repr__(self):
         return str(self.expression)
 
+=======
+        self.terms = get_names(str(expression)) # could be parsed using some other way
+
+    def __repr__(self):
+        return str(self.expression)
+    
+>>>>>>> main
     def __str__(self):
         return str(self.expression)
 
 
 if __name__ == "__main__":
     event_stream = [
+<<<<<<< HEAD
         EventType("RentBike", 1, False, "NA",
                   5, attribute_names=set(["Bid", "Cid"]), attributes={"Bid": str, "Cid": str},
                   unique=set(["Bid", "Cid", "event_time"])),
@@ -110,6 +133,21 @@ if __name__ == "__main__":
                                         ("COUNT OVER", ("b1")): "DELETE b1",
                                         # ("COUNT UNDER", ("b1")): "WAIT"
                                         })
+=======
+    EventType("RentBike", 1, False, "NA",
+              5,  attribute_names=set(["Bid", "Cid"]),  attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"])),
+    EventType("ReturnBike", 1, False, "NA",
+              5,  attribute_names=set(["Bid", "Cid"]), attributes={"Bid": str, "Cid": str}, unique=set(["Bid", "Cid", "event_time"]))
+    ]
+    c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"}, 
+                1, 1440, "LATER", 1, 1, 
+                "b1", "ReturnBike", {"Bid": "x", "Cid": "y"},
+                violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
+                                    # ("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
+                                    ("COUNT OVER", ("b1")): "DELETE b1",
+                                    # ("COUNT UNDER", ("b1")): "WAIT"
+                                    })
+>>>>>>> main
     # for this case, it seems that "TIME OVER" and "COUNT UNDER" is overlapping, and may be of business interest
 
     ################################### Save event type objects to a file
@@ -136,10 +174,18 @@ if __name__ == "__main__":
     for obj in cobjects:
         # print(type(obj))
         print(obj.body_event_type_name, obj.head_event_type_name)
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> main
     test = ArithmeticAtom("x1 + 1 <= x2")
     print(test.expression)
     print(test.operator)
     print(test.terms)
 
 
+<<<<<<< HEAD
+=======
+            
+>>>>>>> main
