@@ -1,10 +1,9 @@
 import pickle
 import ast
 
-
 def get_names(c):
-    return list(set([node.id for node in ast.walk(ast.parse(c)) if isinstance(node, ast.Name)
-                     ]))
+    return list(set([ node.id for node in ast.walk(ast.parse(c)) if isinstance(node, ast.Name)
+    ]))
 
 
 class EventType:
