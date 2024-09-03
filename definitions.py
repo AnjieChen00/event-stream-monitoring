@@ -24,10 +24,10 @@ class EventType:
 
 event_stream = [
     EventType("RentBike", 1, False, "NA",
-              5, attribute_names=set(["Bid", "Cid"]), attributes={"Bid": str, "Cid": str},
+              5, attribute_names=set(["Bid", "Cid"]), attributes={"Bid": "TEXT", "Cid": "TEXT"},
               unique=set(["Bid", "Cid", "event_time"])),
     EventType("ReturnBike", 1, False, "NA",
-              5, attribute_names=set(["Bid", "Cid"]), attributes={"Bid": str, "Cid": str},
+              5, attribute_names=set(["Bid", "Cid"]), attributes={"Bid": "TEXT", "Cid": "TEXT"},
               unique=set(["Bid", "Cid", "event_time"]))
 ]
 # IF body THEN head
@@ -47,7 +47,7 @@ class Constraint:
         self.min_delay, self.max_delay = min_delay, max_delay
         # check if omparative_keyword is either "EARLIER" or "LATER"
         self.omparative_keyword = comparative_keyword
-        self.min_count, self.max_count = min_delay, max_delay
+        self.min_count, self.max_count = min_count, max_count
 
         self.head_event_label = head_event_label
         # check head_event_type_name is in event stream definition
@@ -65,7 +65,14 @@ class Constraint:
     def print_body(self):
         return
 
-
+c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"},
+				1, 1440, "LATER", 1, 1,
+				"b1", "ReturnBike", {"Bid": "x", "Cid": "y"},
+				violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
+									# ("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
+									("COUNT OVER", ("b1")): "DELETE b1",
+									# ("COUNT UNDER", ("b1")): "WAIT"
+									})
 class Rule:
     def __init__(self, rule_id:str, body:list, head:list):
         # self-assigned rule_id during parsing.
@@ -107,14 +114,7 @@ class ArithmeticAtom:
 
 if __name__ == "__main__":
 
-    c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"},
-                    1, 1440, "LATER", 1, 1,
-                    "b1", "ReturnBike", {"Bid": "x", "Cid": "y"},
-                    violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
-                                        # ("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
-                                        ("COUNT OVER", ("b1")): "DELETE b1",
-                                        # ("COUNT UNDER", ("b1")): "WAIT"
-                                        })
+
     # for this case, it seems that "TIME OVER" and "COUNT UNDER" is overlapping, and may be of business interest
 
     ################################### Save event type objects to a file
@@ -142,7 +142,3 @@ if __name__ == "__main__":
         # print(type(obj))
         print(obj.body_event_type_name, obj.head_event_type_name)
 
-    test = ArithmeticAtom("x1 + 1 <= x2")
-    print(test.expression)
-    print(test.operator)
-    print(test.terms)
