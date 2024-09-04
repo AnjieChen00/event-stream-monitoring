@@ -62,7 +62,7 @@ def p_mindelay(p):
     if len(p) > 2:
         p[0] = p[2]
     else:
-        p[0] = -float('inf')
+        p[0] = 0
 
 def p_maxdelay(p):
     '''maxdelay	:	MAX NUMBER
