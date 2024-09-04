@@ -1,8 +1,8 @@
 # ------------------------------------------------------------
-# calclex.py
+# constraintlex.py
 #
 # tokenizer for a simple expression evaluator for
-# numbers and +,-,*,/
+# constraint rules
 # ------------------------------------------------------------
 import ply.lex as lex
 
@@ -19,7 +19,9 @@ reserved = {
 	'COUNT' : 'COUNT',
 	'UNDER' : 'UNDER',
 	'CASE' 	: 'CASE',
-	'DELETE': 'DELETE'
+	'DELETE': 'DELETE',
+	'GENERATE': 'GENERATE',
+	'EXIST'	: 'EXIST'
 }
 
 tokens = [
@@ -68,9 +70,9 @@ lexer = lex.lex()
 # Test it out
 data = '''
 IF r1:RentBike(cid:x,bid:y) #This is a comment
-THEN LATER 1 r2:ReturnBike(cid:x,bid:y) #This is a comment
-CASE TIME OVER delete r1
-CASE COUNT UNDER delete r2
+THEN LATER MIN 1 MAX 1 r2:ReturnBike(cid:x,bid:y) #This is a comment
+CASE TIME OVER DELETE (r1)
+CASE COUNT UNDER DELETE (r2)
 '''
 
 # Give the lexer some input
