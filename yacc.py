@@ -17,7 +17,7 @@ def p_rules(p):
     p[0] = []
     p[0].append(p[1])
     if len(p) > 2:
-        p[0].append(p[3])
+        p[0].extend(p[3][:])
 
 def p_rule(p):
     'rule	:	IF event THEN timedelay relationop countdelay event handles'
@@ -38,11 +38,11 @@ def p_event(p):
 
 def p_vpairs(p):
     '''vpairs	: 	vpair COMMA vpairs
-		|	vpair'''
+		|	vpair'''  
     p[0] = []
     p[0].append(p[1])
     if len(p) > 2:
-        p[0].append(p[3])
+        p[0].extend(p[3][:])
 
 def p_vpair(p):
     'vpair	: 	ID COLON ID'
@@ -76,8 +76,7 @@ def p_relationop(p):
     '''relationop	: 	EARLIER
 			|	LATER
 			| 	EXIST'''
-    if p[1]:
-        p[0] = str(p[1])
+    p[0] = str(p[1])
 
 def p_handles(p):
     '''handles	: 	handle handles
@@ -85,7 +84,7 @@ def p_handles(p):
     p[0] = []
     p[0].append(p[1])
     if len(p) > 2:
-        p[0].append(p[2])
+        p[0].extend(p[2][:])
 
 def p_handle(p):
     'handle	: 	CASE vtype action LPAREN labels RPAREN'
@@ -119,7 +118,7 @@ def p_labels(p):
     p[0] = []
     p[0].append(p[1])
     if len(p) > 2:
-        p[0].append(p[3])
+        p[0].extend(p[3][:])
 
 # Error rule for syntax errors
 def p_error(p):
