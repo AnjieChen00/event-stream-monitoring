@@ -64,7 +64,7 @@ lexer = lex.lex()
 data = '''
 #This is a comment
 CREATE EVENTTYPE RentBike (
-ERT 1 NOSKIPPING 1
+ERT 1 NOSKIPPING
 MAXDELAY 5
 (Bid:str, Cid:str)
 UNIQUE (Bid, Cid, event_time))
