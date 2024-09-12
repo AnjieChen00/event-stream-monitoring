@@ -44,7 +44,7 @@ def create_event_table(EventTypeList=event_stream):
 r = Rule(rule_id=1,
          body=[EventAtom("RentBike", terms=["Bid", "Cid"], timestamp_variable="x")],
          head=[EventAtom("ReturnBike", terms=["Bid", "Cid"], timestamp_variable="y"),
-               ArithmeticAtom(left_term="y", constant=-24, comparative_operator="<=", right_term="x")])
+               ArithmeticAtom(left_term="y", constant=+24, comparative_operator="<=", right_term="x")])
 
 def create_body_assignment(r):
     '''
