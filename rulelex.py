@@ -8,17 +8,18 @@ import ply.lex as lex
 
 # List of token names.   This is always required
 reserved = {
-	'COUNTU':'COUNTU',
+	'COUNTU': 'COUNTU',
+	'COUNT' : 'COUNT',
 	'SUM' 	: 'SUM',
 	'MAX' 	: 'MAX',
 	'MIN' 	: 'MIN',
 	'AVG'	: 'AVG',
 	'STDEV' : 'STDEV',
 	'TIME' 	: 'MOD',
-	'TUMBLING': 'TUMBLING',
-	'SLIDING': 'SLIDING',
+	'TUMBLING':'TUMBLING',
+	'SLIDING':'SLIDING',
 	'IN'	: 'IN',
-	'INTERNAL': 'INTERNAL'
+	'INTERNAL':'INTERNAL'
 }
 
 tokens = [
@@ -37,13 +38,15 @@ tokens = [
    'FA',
    'BA',
    'PLUS',
-   'MINUS'
+   'MINUS',
+   'SEMICOLON'
 ] + list(reserved.values())
 
 # Regular expression rules for simple tokens
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
 t_COLON	  = r':'
+t_SEMICOLON=r';'
 t_COMMA	  = r','
 t_AT	  = r'@'
 t_GT	  = r'>'
@@ -87,11 +90,11 @@ lexer = lex.lex()
 # Test it out
 data = '''
 # Calculation Rule
-S1: INTERNAL calcsum(a1, a2, ax=SUM(x)) <-
-eva(a1, a2, x)@z IN SLIDING (s, 5), 
+S1: calcsum(a1, a2; ax=SUM(x)) <-
+eva(a1, a2; x)@z IN SLIDING (s, 5) 
 # Business Rule
-R1: RentBike(Bid, Cid)@x, ReturnBike(Bid, Cid)@y -> 
-x <= y - 24 
+R1: (RentBike(Bid, Cid)@x, ReturnBike(Bid, Cid)@y) -> 
+(x <= y - 24) 
 '''
 
 # Give the lexer some input
