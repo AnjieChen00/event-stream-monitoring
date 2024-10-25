@@ -1,26 +1,13 @@
+from definitions import *
+from helper import *
+import time
 import sqlite3
 
-from attr import attributes
-from nbclient.client import timestamp
-
-from helper import connect_sqlite_db
-from definitions import EventType, event_stream, Constraint, Rule, EventAtom, ArithmeticAtom
-
-cursor = connect_sqlite_db()
-all_attributes = {}
-EVENT_TABLE = 'events'
 
 # based on the event type objects, create the event table using sql in sqlite
-def create_event_table(EventTypeList=event_stream):
+def create_event_table(EventTypeList=event_stream, con=con, cur=cur):
     # constructing the attributes' sql
     attributes_sql = ''
-
-    # all_attribute_names = set()
-    global all_attributes
-
-    for et in event_stream:
-        # all_attribute_names.update(et.attribute_names)
-        all_attributes.update(et.attributes)
 
     # need to define datatype mapping? what datatype are allowed in definition?
     for attribute_name, datatype in all_attributes.items():
@@ -39,34 +26,31 @@ def create_event_table(EventTypeList=event_stream):
     print(f"event table creation sql: {create_sql}")
 
     try:
-        cursor.execute(create_sql)
+        cur.execute(create_sql)
     except sqlite3.Error as e:
         print(f"Error: {e}")
     return
 
-# just an example to test
-r = Rule(rule_id=1,
-         body=[EventAtom("RentBike", terms=["Bid", "Cid"], timestamp_variable="x")],
-         head=[EventAtom("RentBike", terms=["Bid", "Cid"], timestamp_variable="y"),
-               ArithmeticAtom(left_term="y", constant=-24, comparative_operator="<=", right_term="x")])
 
-
-def create_body_assignment(r: Rule):
+def create_body_assignment(r: Rule, con=con, cur=cur):
     '''
     r need to be a rule class
     '''
-    terms_sql = ''
+    attributes_sql = ''
     time_var_sql = ''
 
-    all_terms = set()
-    all_time_vars = set()
+    all_time_vars = r.body_time_vars
+
+    attribute_type_mapping = {}
+
     for atom in r.body:
         if isinstance(atom, EventAtom):
-            all_terms.update(set(atom.terms))
-            all_time_vars.add(atom.timestamp_variable)
+            atom_event_type = fetch_type_definition_from_stream_definition(event_type_name=atom.predicate)
+            attribute_type_mapping.update(atom_event_type.attributes)
 
-    for term in list(all_terms):
-        terms_sql += f'{term} {all_attributes[term]},'
+    for attr, type in attribute_type_mapping.items():
+        attributes_sql += f'{attr} {type},'
+
     for time_var in list(all_time_vars):
         time_var_sql += f'{time_var} INTEGER,'
 
@@ -74,9 +58,8 @@ def create_body_assignment(r: Rule):
     CREATE TABLE IF NOT EXISTS body_assignment_{r.rule_id} (
     aid TEXT,
     Associated_event_ids TEXT,
-    {terms_sql}
+    {attributes_sql}
     {time_var_sql}
-    gap_atoms BLOB
     match BOOLEAN DEFAULT False, 
     PRIMARY KEY (aid)
     )
@@ -85,28 +68,31 @@ def create_body_assignment(r: Rule):
     print(f"BA creation sql: {create_ba_sql}")
 
     try:
-        cursor.execute(create_ba_sql)
+        cur.execute(create_ba_sql)
     except sqlite3.Error as e:
         print(f"Error: {e}")
 
     return
 
-def create_head_assignment(r: Rule):
+def create_head_assignment(r: Rule, con=con, cur=cur):
     '''
     r need to be a rule class
     '''
-    terms_sql = ''
+    attributes_sql = ''
     time_var_sql = ''
 
-    all_terms = set()
-    all_time_vars = set()
+    all_time_vars = r.head_time_vars
+
+    attribute_type_mapping = {}
+
     for atom in r.head:
         if isinstance(atom, EventAtom):
-            all_terms.update(set(atom.terms))
-            all_time_vars.add(atom.timestamp_variable)
+            atom_event_type = fetch_type_definition_from_stream_definition(event_type_name=atom.predicate)
+            attribute_type_mapping.update(atom_event_type.attributes)
 
-    for term in list(all_terms):
-        terms_sql += f'{term} {all_attributes[term]},'
+    for attr, type in attribute_type_mapping.items():
+        attributes_sql += f'{attr} {type},'
+
     for time_var in list(all_time_vars):
         time_var_sql += f'{time_var} INTEGER,'
 
@@ -114,9 +100,8 @@ def create_head_assignment(r: Rule):
     CREATE TABLE IF NOT EXISTS head_assignment_{r.rule_id} (
     aid TEXT,
     Associated_event_ids TEXT,
-    {terms_sql}
+    {attributes_sql}
     {time_var_sql}
-    gap_atoms BLOB,
     PRIMARY KEY (aid)
     )
     '''
@@ -124,20 +109,36 @@ def create_head_assignment(r: Rule):
     print(f'HA creation sql: {create_ha_sql}')
 
     try:
-        cursor.execute(create_ha_sql)
+        cur.execute(create_ha_sql)
     except sqlite3.Error as e:
         print(f"Error: {e}")
 
     return
 
-c1 = Constraint(body_event_label="a1", body_event_type_name="RentBike", body_attributes={"Bid": "x", "Cid": "y"},
-				min_delay=1, max_delay=None, comparative_keyword="LATER", min_count=1, max_count=1,
-				head_event_label="b1", head_event_type_name="ReturnBike", head_attributes={"Bid": "x", "Cid": "y"},
-				violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
-									# ("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
-									("COUNT OVER", ("b1")): "DELETE b1",
-									# ("COUNT UNDER", ("b1")): "WAIT"
-									})
+def create_extension_table(r: Rule, con=con, cur=cur):
+
+    sql = f'''
+    CREATE TABLE IF NOT EXISTS extension_{r.rule_id} (
+    bid TEXT,
+    hid TEXT,
+    deadline INTEGER
+    );
+    '''
+    try:
+        cur.execute(sql)
+        print(f'EXT creation sql: {sql}')
+    except sqlite3.Error as e:
+        print(f"Error: {e}")
+
+
+def create_assignment_database(rules, con=con, cur=cur):
+    for r in rules:
+        create_body_assignment(r, con=con, cur=cur)
+        create_head_assignment(r, con=con, cur=cur)
+        create_extension_table(r, con=con, cur=cur)
+    return True
+
+
 def constraint_translation(c: Constraint):
     condition = ''
     attributes_select = ''
@@ -185,10 +186,19 @@ def constraint_translation(c: Constraint):
             queries["TIME UNDER"] = min_delay_violation_query
 
     if c.max_count:
+        # max(head_event_report_time) as latest_head_event_report_time,
         max_count_violation_query = base_table_query + '''
-        select *, count(head_event_id) as count from base
-        group by body_event_id
-        having count > 1;
+        SELECT b1.body_event_id as body_event_id,
+        b1.head_event_id as head_event_id
+        FROM base AS b1
+        JOIN (
+            SELECT body_event_id, MAX(head_event_report_time) AS latest_head_event_report_time
+            FROM base
+            GROUP BY body_event_id
+            HAVING COUNT(head_event_id) > 1
+        ) AS b2
+        ON b1.body_event_id = b2.body_event_id
+        AND b1.head_event_report_time = b2.latest_head_event_report_time;
         '''
         # there is a corresponding violation handling, which should be deleting the head event in the current batch (parsing should handle this)
         if ("COUNT OVER", (c.head_event_label)) in c.violation_handling:
@@ -196,18 +206,3 @@ def constraint_translation(c: Constraint):
 
     return queries
 
-
-if __name__ == '__main__':
-    # create_event_table()
-    # create_body_assignment(r=r)
-    # create_head_assignment(r=r)
-    queries = constraint_translation(c=c1)
-    # print(queries)
-
-    # sanity checking
-    for violation, query in queries.items():
-        print(query)
-        try:
-            cursor.execute(query)
-        except sqlite3.Error as e:
-            print(f"Error: {e}")

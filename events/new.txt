@@ -1,0 +1,11 @@
+1: 1725741350
+{event_type_name:RentBike,Bid:23715,Cid:132825189,event_time:1725741345}
+{event_type_name:RentBike,Bid:23716,Cid:132825100,event_time:1725741344}
+END
+2: 1725741350
+{event_type_name:RentBike,Bid:23715,Cid:132825189,event_time:1725741345}
+{event_type_name:ReturnBike,Bid:23717,Cid:132825101,event_time:1725741350}
+END
+3: 1725741354
+{event_type_name:RentBike,Bid:23715,Cid:132825189,event_time:1725741345}
+END
