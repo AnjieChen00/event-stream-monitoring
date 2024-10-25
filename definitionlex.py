@@ -1,5 +1,5 @@
 # ------------------------------------------------------------
-# constraintlex.py
+# definitionlex.py
 #
 # tokenizer for a simple expression evaluator for
 # constraint rules
@@ -8,20 +8,13 @@ import ply.lex as lex
 
 # List of token names.   This is always required
 reserved = {
-	'IF' 	:'IF',
-	'THEN' 	: 'THEN',
-	'MAX' 	: 'MAX',
-	'MIN' 	: 'MIN',
-	'EALIER': 'EARLIER',
-	'LATER' : 'LATER',
-	'TIME' 	: 'TIME',
-	'OVER' 	: 'OVER',
-	'COUNT' : 'COUNT',
-	'UNDER' : 'UNDER',
-	'CASE' 	: 'CASE',
-	'DELETE': 'DELETE',
-	'GENERATE': 'GENERATE',
-	'EXIST'	: 'EXIST'
+	'CREATE': 'CREATE',
+	'EVENTTYPE': 'EVENTTYPE',
+	'SKIPPING': 'SKIPPING',
+	'NOSKIPPING': 'NOSKIPPING',
+	'ERT': 'ERT',
+	'MAXDELAY' : 'MAXDELAY',
+	'UNIQUE': 'UNIQUE'
 }
 
 tokens = [
@@ -69,10 +62,12 @@ lexer = lex.lex()
 
 # Test it out
 data = '''
-IF r1:RentBike(cid:x,bid:y) #This is a comment
-THEN LATER MIN 1 MAX 1 r2:ReturnBike(cid:x,bid:y) #This is a comment
-CASE TIME OVER DELETE (r1)
-CASE COUNT UNDER DELETE (r2)
+#This is a comment
+CREATE EVENTTYPE RentBike (
+ERT 1 NOSKIPPING
+MAXDELAY 5
+(Bid:str, Cid:str)
+UNIQUE (Bid, Cid, event_time))
 '''
 
 # Give the lexer some input

@@ -8,20 +8,18 @@ import ply.lex as lex
 
 # List of token names.   This is always required
 reserved = {
-	'IF' 	:'IF',
-	'THEN' 	: 'THEN',
+	'COUNTU': 'COUNTU',
+	'COUNT' : 'COUNT',
+	'SUM' 	: 'SUM',
 	'MAX' 	: 'MAX',
 	'MIN' 	: 'MIN',
-	'EALIER': 'EARLIER',
-	'LATER' : 'LATER',
-	'TIME' 	: 'TIME',
-	'OVER' 	: 'OVER',
-	'COUNT' : 'COUNT',
-	'UNDER' : 'UNDER',
-	'CASE' 	: 'CASE',
-	'DELETE': 'DELETE',
-	'GENERATE': 'GENERATE',
-	'EXIST'	: 'EXIST'
+	'AVG'	: 'AVG',
+	'STDEV' : 'STDEV',
+	'TIME' 	: 'MOD',
+	'TUMBLING':'TUMBLING',
+	'SLIDING':'SLIDING',
+	'IN'	: 'IN',
+	'INTERNAL':'INTERNAL'
 }
 
 tokens = [
@@ -30,14 +28,36 @@ tokens = [
    'RPAREN',
    'ID',
    'COLON',
-   'COMMA'
+   'COMMA',
+   'AT',
+   'GT',
+   'LT',
+   'GTE',
+   'LTE',
+   'EQ',
+   'FA',
+   'BA',
+   'PLUS',
+   'MINUS',
+   'SEMICOLON'
 ] + list(reserved.values())
 
 # Regular expression rules for simple tokens
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
 t_COLON	  = r':'
+t_SEMICOLON=r';'
 t_COMMA	  = r','
+t_AT	  = r'@'
+t_GT	  = r'>'
+t_LT	  = r'<'
+t_GTE	  = r'>='
+t_LTE	  = r'<='
+t_EQ	  = r'='
+t_FA	  = r'->'
+t_BA	  = r'<-'
+t_PLUS	  = r'\+'
+t_MINUS	  = r'-'
 # A regular expression rule with some action code
 def t_NUMBER(t):
     r'\d+'
@@ -69,10 +89,12 @@ lexer = lex.lex()
 
 # Test it out
 data = '''
-IF r1:RentBike(cid:x,bid:y) #This is a comment
-THEN LATER MIN 1 MAX 1 r2:ReturnBike(cid:x,bid:y) #This is a comment
-CASE TIME OVER DELETE (r1)
-CASE COUNT UNDER DELETE (r2)
+# Calculation Rule
+S1: calcsum(a1, a2; ax=SUM(x)) <-
+eva(a1, a2; x)@z IN SLIDING (s, 5) 
+# Business Rule
+R1: (RentBike(Bid, Cid)@x, ReturnBike(Bid, Cid)@y) -> 
+(x <= y - 24) 
 '''
 
 # Give the lexer some input
