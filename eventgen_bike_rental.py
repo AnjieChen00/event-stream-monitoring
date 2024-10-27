@@ -13,12 +13,12 @@ for day in range(days):
 		z1 = users * day + s
 		z2 = z1 + random.randint(1,users-s)
 		bid = bids[users*day+cid]
-		rent, ret = {"event_type_name":"rentBike", "bid":bid, "cid":cid, "event_report_time":z1}, {"event_type_name":"returnBike", "bid":bid, "cid":cid, "event_report_time":z2}
+		rent, ret = {"event_type_name":"rentBike", "bid":bid, "cid":cid, "event_time":z1}, {"event_type_name":"returnBike", "bid":bid, "cid":cid, "event_time":z2}
 		res.extend([rent, ret])
 for i in range(2*days):
 	for j in range(bikes):
-		res.append({"event_type_name":"reportLocation", "bid":j, "event_report_time":10*i})
-res.sort(key=lambda x: x["event_report_time"])
+		res.append({"event_type_name":"reportLocation", "bid":j, "event_time":10*i})
+res.sort(key=lambda x: x["event_time"])
 batchid = 0
 with open("events.txt", "a") as f:
 	batch = ""
@@ -28,8 +28,8 @@ with open("events.txt", "a") as f:
 		s = ""
 		curr = 0
 		for k,v in i.items():
-			s += f"{k}: {v}, "
-			if k=="event_report_time":
+			s += f"{k}: {v}; "
+			if k=="event_time":
 				curr = v
 		s = s[:-2]
 		batch += '{'+f"{s}"+"}\n"

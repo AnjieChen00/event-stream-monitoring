@@ -17,9 +17,11 @@ for uid in uids:
 	# Start of the event chain
 	z0 = random.randint(0,day)
 	place_order = {"event_type_name": "place_order", "user_id": str(uid), 'order_id': str(oid), 'item_id_quantity_mapping': default_item_id_quantity_mapping, 'payment_method': 'apple pay', 'payment_amount': random.randint(90,10e5)/100,'payment_tracking_id': str(pid), "event_time": z0}
-	z1 = z0 + np.clip((int(xmax*(0.5+np.random.normal(0,1)))),1,xmax-1)
-	picking = {"event_type_name": "picking", 'order_id': str(oid), 'item_id': str(iid), 'warehouse_id': str(wid), "event_time": z1}
-	z2 = z1 + np.clip((int(ymax*(0.5+np.random.normal(0,1)))),1,ymax-1)
+	z1a = z0 + np.clip((int(xmax*(0.5+np.random.normal(0,1)))),1,xmax-1)
+	z1b = z0 + np.clip((int(xmax*(0.5+np.random.normal(0,1)))),1,xmax-1)
+	picking = {"event_type_name": "picking", 'order_id': str(oid), 'item_id': "cast iron", 'warehouse_id': str(wid), "event_time": z1a}
+	picking = {"event_type_name": "picking", 'order_id': str(oid), 'item_id': "chainmail cleaner", 'warehouse_id': str(wid), "event_time": z1b}	
+	z2 = max(z1a, z1b) + np.clip((int(ymax*(0.5+np.random.normal(0,1)))),1,ymax-1)
 	packing = {"event_type_name": "packing", 'order_id': str(oid), 'package_id': str(pid), 'item_id_quantity_mapping': default_item_id_quantity_mapping, 'warehouse_id': str(wid), "event_time": z2}
 	z3 = z2 + np.clip((int(ymax*(0.5+np.random.normal(0,1)))),1,ymax-1)
 	assign_carrier = {"event_type_name": "assign_carrier", 'package_id': str(pid), 'warehouse_id': str(wid), 'carrier_id': str(cid), "event_time": z3}
