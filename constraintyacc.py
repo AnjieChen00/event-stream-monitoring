@@ -22,19 +22,19 @@ def p_rules(p):
 def p_rule(p):
     'rule	:	IF event THEN timedelay relationop countdelay event handles'
     p[0] = {}
-    p[0]["e1"] = p[2]
-    p[0]["e2"] = p[7]
-    p[0]["ro"] = p[5]
-    p[0]["td"] = p[4]
-    p[0]["cd"] = p[6]
-    p[0]["hd"] = p[8]
+    p[0]["body_event"] = p[2]
+    p[0]["head_event"] = p[7]
+    p[0]["comparative_keyword"] = p[5]
+    p[0]["time_delay"] = p[4]
+    p[0]["count"] = p[6]
+    p[0]["violation_handling"] = p[8]
 
 def p_event(p):
     'event	: 	ID COLON ID LPAREN vpairs RPAREN'
     p[0] = {}
-    p[0]["tag"] = p[1]
-    p[0]["name"] = p[3]
-    p[0]["vp"] = p[5]
+    p[0]["label"] = p[1]
+    p[0]["event_type_name"] = p[3]
+    p[0]["attributes"] = p[5]
 
 def p_vpairs(p):
     '''vpairs	: 	vpair COMMA vpairs
@@ -89,9 +89,9 @@ def p_handles(p):
 def p_handle(p):
     'handle	: 	CASE vtype action LPAREN labels RPAREN'
     p[0] = {}
-    p[0]["vt"] = p[2]
-    p[0]["act"] = p[3]
-    p[0]["lbs"] = p[5]
+    p[0]["violation_type"] = p[2]
+    p[0]["action"] = p[3]
+    p[0]["labels"] = p[5]
 
 def p_vtype(p):
     'vtype	: 	v1 v2'

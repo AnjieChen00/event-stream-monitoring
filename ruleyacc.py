@@ -27,19 +27,19 @@ def p_rule(p):
 def p_calcrule(p):
     '''calcrule	: 	ID COLON ID LPAREN labels SEMICOLON ID EQ aggf LPAREN ID RPAREN RPAREN BA ID LPAREN labels SEMICOLON ID RPAREN AT ID IN wtype LPAREN ID COMMA NUMBER RPAREN wm'''
     p[0] = {}
-    p[0]["id"] = p[1] 
-    p[0]["iname"] = p[3]
-    p[0]["labels"] = p[5]
-    p[0]["amn"] = p[7]
-    p[0]["aggf"] = p[9]
-    p[0]["mname"] = p[11]
-    p[0]["name"] = p[15]
-    p[0]["labels2"] = p[17]
-    p[0]["mname2"] = p[19]
-    p[0]["wtype"] = p[24]
-    p[0]["wend"] = p[26]
-    p[0]["wlen"] = p[28]
-    p[0]["wmod"] = p[30]
+    p[0]["rule_id"] = p[1] 
+    p[0]["internal_event_type_name"] = p[3]
+    p[0]["head_labels"] = p[5]
+    p[0]["aggregated_metric_name"] = p[7]
+    p[0]["aggregation_function"] = p[9]
+    p[0]["metric_name"] = p[11]
+    p[0]["body_function"] = p[15]
+    p[0]["body_labels"] = p[17]
+    p[0]["body_name"] = p[19]
+    p[0]["window_type"] = p[24]
+    p[0]["window_end"] = p[26]
+    p[0]["window_length"] = p[28]
+    p[0]["window_modulus"] = p[30]
 
 def p_aggf(p):
     '''aggf	: 	SUM
@@ -61,16 +61,16 @@ def p_wm(p):
 		| 	empty'''
     p[0] = {}
     if len(p) > 2:
-        p[0]["wtype"] = p[1]
-        p[0]["wend"] = p[3]
-        p[0]["wlen"] = p[5]
+        p[0]["window_type"] = p[1]
+        p[0]["window_end"] = p[3]
+        p[0]["window_length"] = p[5]
 
 def p_brule(p):
     'brule		: 	ID COLON LPAREN iexts RPAREN FA LPAREN aexts RPAREN'
     p[0] = {}
     p[0]["id"] = p[1]
-    p[0]["iexts"] = p[4]
-    p[0]["aexts"] = p[8]
+    p[0]["body"] = p[4]
+    p[0]["head"] = p[8]
 
 def p_iid(p):
     '''iid	: 	INTERNAL
@@ -106,7 +106,7 @@ def p_iext(p):
     'iext	: 	iid ID LPAREN labels RPAREN AT ID' 
     p[0] = {}
     if len(p) > 2:
-        p[0]["iid"] = p[1]
+        p[0]["body_id"] = p[1]
         p[0]["name"] = p[2]
         p[0]["labels"] = p[4]
         p[0]["zid"] = p[7]
@@ -122,9 +122,9 @@ def p_aexts(p):
 def p_aext(p):
     'aext	: 	ID theta npair'
     p[0] = {}
-    p[0]["id"] = p[1]
+    p[0]["head_id"] = p[1]
     p[0]["theta"] = p[2]
-    p[0]["npair"] = p[3]
+    p[0]["attribute_pair"] = p[3]
 
 def p_labels(p):
     '''labels	: 	ID COMMA labels
