@@ -128,7 +128,7 @@ def test_extended_deadline():
 # @pytest.mark.skip()
 def test_batch_gen():
     # Example usage
-    file_path = 'new.txt'
+    file_path = 'simplified_online_shopping_events.txt'
     batch_generator = parse_batches_generator(file_path)
 
     # Process each batch one at a time
@@ -202,4 +202,4 @@ def test_init_2():
     #         print(f"Error: {e}")
 
     create_assignment_database(rules=rules)
-    conn.close()
+    con.close()

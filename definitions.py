@@ -10,7 +10,7 @@ EVENT_TABLE = 'events'
 DBNAME = 'monitor.db'
 WINDOW_SIZE = 864000 #10 days in unix time(presented by seconds)
 EVENT_FOLDER = 'events/'
-EVENT_FILE = 'online_shopping_events.txt'
+EVENT_FILE = 'simplified_online_shopping_events.txt'
 class EventType:
     def __init__(self, event_type_name: str,
                  event_time_granularity: int,
@@ -92,8 +92,6 @@ class ArithmeticAtom:
         # the atom can have 0-n variables, the variables can be time vars or attribute vars
         # constants can be negative
         # Gap atom are simpler, as there would only be two variables (can be time var or attribute var)
-
-
         if len(variables) == len(coefficient_vector) and len(variables) <= 2 and len(coefficient_vector) <= 2:
             self.variables = variables
             self.coefficient_vector = coefficient_vector
@@ -130,12 +128,12 @@ class Rule:
 
         self.body_event_atoms = [item for item in self.body if isinstance(item, EventAtom)]
         self.body_time_vars = list(set([item.timestamp_variable for item in self.body if isinstance(item, EventAtom)]))
-        self.body_attributes = [attr for item in self.body if isinstance(item, EventAtom) for attr in item.attributes]
+        self.body_attributes = list(set([attr for item in self.body if isinstance(item, EventAtom) for attr in item.attributes]))
         self.body_arithmetic_atoms = [item for item in self.body if isinstance(item, ArithmeticAtom)]
 
         self.head_event_atoms = [item for item in self.head if isinstance(item, EventAtom)]
         self.head_time_vars = list(set([item.timestamp_variable for item in self.head if isinstance(item, EventAtom)]))
-        self.head_attributes = [attr for item in self.head if isinstance(item, EventAtom) for attr in item.attributes]
+        self.head_attributes = list(set([attr for item in self.head if isinstance(item, EventAtom) for attr in item.attributes]))
         self.head_arithmetic_atoms = [item for item in self.head if isinstance(item, ArithmeticAtom)]
 
     def __str__(self):
@@ -279,16 +277,18 @@ confirm_delivery = EventType(event_type_name='confirm_delivery',
 event_stream = [place_order, picking, packing, assign_carrier, print_shipping_label, ship, deliver, confirm_delivery]
 constraints = []
 
-# if not picked within a day, report violation
+# if not picked within a day, report violation; any picking shouldn't be later than a day
 r1 = Rule(rule_id=101, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')],
          head=[EventAtom(predicate='picking', attributes=['order_id', 'item_id', 'warehouse_id'], timestamp_variable='y'),
                ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=86400)])
 
 # if didn't have shipping label within a day, report violation
-r2 = Rule(rule_id=102, body=[EventAtom(predicate='packing', attributes=['order_id', 'package_id'], timestamp_variable='x')],
-         head=[EventAtom(predicate='print_shipping_label', attributes=['package_id'], timestamp_variable='y'),
-               ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=86400)])
-rules=[r1]
+r2 = Rule(rule_id=102, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')
+    , EventAtom(predicate='packing', attributes=['order_id', 'package_id'], timestamp_variable='y')],
+         head=[EventAtom(predicate='print_shipping_label', attributes=['package_id'], timestamp_variable='z'),
+               ArithmeticAtom(variables=['x', 'z'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=90000),
+               ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=88000),])
+rules=[r2]
 # ############################################################################################################
 # event_stream = [RentBike,ReturnBike]
 # event_stream = [Pay, Schedule]
@@ -300,14 +300,14 @@ for et in event_stream:
 
 # print(all_attributes)
 
-# c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"},
-# 				1, 1440, "LATER", 1, 1,
-# 				"b1", "ReturnBike", {"Bid": "x", "Cid": "y"},
-# 				violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
-# 									# ("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
-# 									("COUNT OVER", ("b1")): "DELETE b1",
-# 									# ("COUNT UNDER", ("b1")): "WAIT"
-# 									})
+c1 = Constraint("a1", "RentBike", {"Bid": "x", "Cid": "y"},
+				1, 1440, "LATER", 1, 1,
+				"b1", "ReturnBike", {"Bid": "x", "Cid": "y"},
+				violation_handling={("TIME UNDER", ("a1", "b1")): "DELETE a1 b1",
+									# ("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
+									("COUNT OVER", ("b1")): "DELETE b1",
+									# ("COUNT UNDER", ("b1")): "WAIT"
+									})
 # constraints = [c1]
 #
 # # just an example to test

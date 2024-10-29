@@ -46,13 +46,16 @@ def create_body_assignment(r: Rule, con=con, cur=cur):
     for atom in r.body:
         if isinstance(atom, EventAtom):
             atom_event_type = fetch_type_definition_from_stream_definition(event_type_name=atom.predicate)
-            attribute_type_mapping.update(atom_event_type.attributes)
+            # we should be only selecting the attributes that is in the rule
+            for attr, type in atom_event_type.attributes.items():
+                if attr in r.body_attributes:
+                    attribute_type_mapping[attr] = type
 
     for attr, type in attribute_type_mapping.items():
         attributes_sql += f'{attr} {type},'
 
     for time_var in list(all_time_vars):
-        time_var_sql += f'{time_var} INTEGER,'
+        time_var_sql += f'{time_var} INTEGER, {time_var}' + '_prime INTEGER,'
 
     create_ba_sql = f'''
     CREATE TABLE IF NOT EXISTS body_assignment_{r.rule_id} (
@@ -60,7 +63,7 @@ def create_body_assignment(r: Rule, con=con, cur=cur):
     Associated_event_ids TEXT,
     {attributes_sql}
     {time_var_sql}
-    match BOOLEAN DEFAULT False, 
+    matched BOOLEAN DEFAULT False, 
     PRIMARY KEY (aid)
     )
     '''
@@ -88,13 +91,16 @@ def create_head_assignment(r: Rule, con=con, cur=cur):
     for atom in r.head:
         if isinstance(atom, EventAtom):
             atom_event_type = fetch_type_definition_from_stream_definition(event_type_name=atom.predicate)
-            attribute_type_mapping.update(atom_event_type.attributes)
+            # we should be only selecting the attributes that is in the rule
+            for attr, type in atom_event_type.attributes.items():
+                if attr in r.head_attributes:
+                    attribute_type_mapping[attr] = type
 
     for attr, type in attribute_type_mapping.items():
         attributes_sql += f'{attr} {type},'
 
     for time_var in list(all_time_vars):
-        time_var_sql += f'{time_var} INTEGER,'
+        time_var_sql += f'{time_var} INTEGER, {time_var}' + '_prime INTEGER,'
 
     create_ha_sql = f'''
     CREATE TABLE IF NOT EXISTS head_assignment_{r.rule_id} (

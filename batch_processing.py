@@ -142,7 +142,7 @@ def deletion_from_events(deletion_list, con=con, cur=cur):
         print(f'successful deleted event_id {event_id}')
 
 
-def deletion_from_BA(deletion_list, con=con, cur=cur):
+def deletion_from_BA(deletion_list, rules=rules, con=con, cur=cur):
     Bids = {}
     for event_id in deletion_list:
         for r in rules:
@@ -169,7 +169,7 @@ def deletion_from_BA(deletion_list, con=con, cur=cur):
     return Bids
 
 
-def deletion_from_HA(deletion_list, con=con, cur=cur):
+def deletion_from_HA(deletion_list, rules=rules, con=con, cur=cur):
     Hids = {}
     for event_id in deletion_list:
         for r in rules:

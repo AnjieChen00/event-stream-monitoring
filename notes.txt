@@ -1,0 +1,13 @@
+10/15
+1. action item for meeting: provide Tyler with event type definition of applications
+
+
+10/22 meeting
+1. after Nov 18th, check with Tao
+2. Need to be in-person
+3. Nov 12th all the experiment done
+
+4. debug with existing examples, fine-tune with Tyler
+
+attributes filling in gradually... ???
+confirm: 36/100 batches, why is events delayed so much? would be interested to see more events in the max delay scope...

@@ -2,12 +2,13 @@ from copy import deepcopy
 
 from matplotlib.table import table
 from pandas.core.ops import arithmetic_op
+from sympy.multipledispatch.conflict import consistent
 
 from definitions import *
 from sys_init import *
 from helper import *
 from batch_processing import *
-
+from tabulate import tabulate
 
 def remove_attribute_vars_from_gap_atoms(r: Rule) -> Rule:
     eliminate_from_body = set()
@@ -34,11 +35,11 @@ def remove_attribute_vars_from_gap_atoms(r: Rule) -> Rule:
     head_tmp = r.body_arithmetic_atoms + r.head_arithmetic_atoms
 
     for v in eliminate_from_head:
-        print(f'eliminating {v}')
+        # print(f'eliminating {v}')
         head_tmp = eliminate_var(var=v, atoms=head_tmp)
-        for each in head_tmp:
-            print(each)
-        print('-'* 50)
+        # for each in head_tmp:
+            # print(each)
+        # print('-'* 50)
     # simply inequalities
     head_tmp = simplify_inequalities(inequalities=head_tmp)
 
@@ -56,7 +57,7 @@ def deadline(gap_atoms: list[ArithmeticAtom], time_var_assignment: dict) -> int:
                 upperbd[var] = float('inf')
 
     time_vars = [x for x in upperbd.keys()]
-    print(f'time vars: {time_vars}')
+    # print(f'time vars: {time_vars}')
 
     # step 2: if the assignment is already unsatisfiable on those gap atoms, return the max assignment value
     if not sat_test(gap_atoms, time_var_assignment):
@@ -169,79 +170,86 @@ def insert_row_to_table(row_dict: dict, table_name: str, cur=cur, con=con) -> in
         # Execute the query with dynamic column names and values
         cur.execute(insert_sql, values)
         con.commit()
-        print("Row inserted successfully.")
+        # print("Row inserted successfully.")
         return True
     except Exception as e:
         print(f"Error occurred: {e}")
         return False
 
-def merge(assignment_table_name: str, time_vars: list[str], attributes: list[str], con=con, cur=cur) -> list[dict]:
-    merge_time_vars = ''
-    time_vars_string_1 = ''
-    time_vars_string_2 = ''
-    for var in time_vars:
-        merge_time_vars += f'CASE WHEN COUNT(DISTINCT {var}) = 1 THEN MIN({var}) ELSE NULL END AS {var},'
-        time_vars_string_1 += f'm.{var}, '
-        time_vars_string_2 += f'(t.{var}=m.{var} OR (t.{var} IS NULL AND m.{var} IS NULL)) AND'
-    merge_time_vars = merge_time_vars[:-1]
-    time_vars_string_1 = time_vars_string_1[:-1]
-    time_vars_string_2 = time_vars_string_2[:-3]
+def merge(assignment_table_name: str, time_vars: list[str], attributes: list[str], new_assignments: list[dict], con=con, cur=cur) -> list[dict]:
+    different_condition = ''
 
-    attributes_string = ', '.join(attributes)
-    attributes_string = attributes_string[:-1]
-    attributes_string_1 = ''
-    attributes_string_2 = ''
-    for attribute in attributes:
-        attributes_string_1 += f'm.{attribute}, '
-        attributes_string_2 += f'(t.{attribute}=m.{attribute} OR (t.{attribute} IS NULL AND m.{attribute} IS NULL)) AND'
-    attributes_string_1 = attributes_string[:-1]
-    attributes_string_2 = attributes_string_2[:-3]
+    for _ in new_assignments:
+        different_condition += f'''aid != '{_["aid"]}' AND '''
 
-    merge_sql = f'''
-    WITH merged_rows AS (
-    SELECT group_concat(Associated_event_ids, ',') AS Associated_event_ids,
-    {attributes_string},
-    {merge_time_vars}
-    FROM {assignment_table_name}
-    GROUP BY {attributes_string}
-    HAVING COUNT(*) > 1
-    )
-    '''
-    # Have to make sure the merged row is not the same as one of the source rows
-    exclude_sql = f'''
-    SELECT m.Associated_event_ids,
-    {attributes_string_1}, 
-    {time_vars_string_1}
-    FROM merged_rows AS m
-    WHERE NOT EXISTS (
-        SELECT
-            1
-        FROM
-            {assignment_table_name} AS t
-        WHERE {time_vars_string_2} AND
-        {attributes_string_2}
-    );
-    '''
-    query = merge_sql + exclude_sql
-    print(f'query used to merge rows: \n{query}')
+    merged_rows_dicts = []
 
-    try:
-        cur.execute(query)
-        merged_rows = cur.fetchall()
-        column_names = [description[0] for description in cur.description]
-        # Convert rows to list of dictionaries
-        merged_rows_dicts = [dict(zip(column_names, row)) for row in merged_rows]
-        return merged_rows_dicts
+    for new_assignment in new_assignments:
+        attributes_condition = ''
+        for attr in attributes:
+            if attr in new_assignment and new_assignment[attr] is not None:
+                attributes_condition += f"({attr}='{new_assignment[attr]}' OR {attr} is Null) AND "
 
-    except Exception as e:
-        print(f"Error occurred: {e}")
-        return []
+        time_vars_condition = ''
+        for time_var in time_vars:
+            if time_var in new_assignment and new_assignment[time_var] is not None:
+                time_vars_condition += f'({time_var}={new_assignment[time_var]} OR {time_var} is Null) AND '
+
+        find_consistent_rows_query = f'''select * 
+        from {assignment_table_name}
+        where {different_condition} 
+        {attributes_condition}
+        {time_vars_condition[:-4]} 
+        '''
+        if assignment_table_name.startswith('body'):
+            find_consistent_rows_query += ' AND matched=0;'
+        elif assignment_table_name.startswith('head'):
+            find_consistent_rows_query += ';'
+
+        print(f"debug - merge: {find_consistent_rows_query}")
+        # print_table(table_name=assignment_table_name)
+
+        try:
+            cur.execute(find_consistent_rows_query)
+            consistent_rows = cur.fetchall()
+            column_names = [description[0] for description in cur.description]
+            # Convert rows to list of dictionaries
+            consistent_rows_dicts = [dict(zip(column_names, row)) for row in consistent_rows]
+        except Exception as e:
+            print(f"Error occurred in merge {find_consistent_rows_query} : {e}")
+            consistent_rows_dicts = []
+
+        for consistent_rows_dict in consistent_rows_dicts:
+            # print(consistent_rows_dict) # this will have all the columns as keys from the Assignment table
+            # print(new_assignment)
+            # print('*'* 100)
+            tmp = copy.deepcopy(consistent_rows_dict)
+            tmp['aid'] = None
+            for col_name, value in consistent_rows_dict.items():
+                if col_name == 'Associated_event_ids':
+                    tmp[col_name] += f'+{new_assignment[col_name]}'
+                elif col_name in new_assignment and col_name != 'aid':
+                    if value is None and new_assignment[col_name] is not None:
+                        tmp[col_name] = new_assignment[col_name]
+                    elif value is not None and new_assignment[col_name] is None:
+                        tmp[col_name] = value
+                    elif value is None and new_assignment[col_name] is None:
+                        tmp[col_name] = None
+                    else:
+                        if new_assignment[col_name] == value:
+                            tmp[col_name] = value
+                        else:
+                            print(f'{col_name} are inconsistent')
+            merged_rows_dicts.append(tmp)
+
+    return merged_rows_dicts
 
 
-def update_assignment_table(event_atoms: list[EventAtom], gap_atoms: list[ArithmeticAtom], time_vars: list[str], attributes: list[str], event_batch: list[dict], table_name: str):
-    changes = False
+
+def update_assignment_table(event_atoms: list[EventAtom], gap_atoms: list[ArithmeticAtom], time_vars: list[str], attributes: list[str], event_batch: list[dict], batch_timestamp: int, table_name: str):
+    newly_inserted_assignments = []
     for event in event_batch:
-        print(f'processing event {event} for table {table_name} \n')
+        print(f'update_assignment_table DEBUG - processing event {event} \n for table {table_name} \n')
         for event_atom in event_atoms:
             time_var = event_atom.timestamp_variable
             event_type = fetch_type_definition_from_stream_definition(event_type_name=event_atom.predicate)
@@ -253,26 +261,29 @@ def update_assignment_table(event_atoms: list[EventAtom], gap_atoms: list[Arithm
                 # create assignment
                 assignment = {'aid': get_next_aid(table_name=table_name),
                               'Associated_event_ids': event['event_id'],
+                              f'{time_var}' + '_prime': batch_timestamp
                               # 'gap_atoms': pickle.dumps(gap_atoms_evaluated)
                               }
 
                 for event_attr, value in event.items():
-                    if event_attr != 'event_report_time' and event_attr != 'event_type_name' and event_attr != 'event_id':
+                    if event_attr == 'event_time' or event_attr in attributes:
                         if event_attr != 'event_time':
                             assignment[event_attr] = value
                         else:
                             assignment[time_var] = value
 
                 # print(f'the assignment is {assignment}')
-                print(f'inserting the assignment {assignment} to the {table_name} table')
+                print(f'update_assignment_table DEBUG - inserting the assignment {assignment} to the {table_name} table')
                 res = insert_row_to_table(row_dict=assignment, table_name=table_name)
-                if res: changes = True
+                if res:
+                    newly_inserted_assignments.append(assignment)
 
-    if changes:
+    if newly_inserted_assignments:
         # for each pair of unique and consistent rows (func to find them), merge and get a new assignment
 
         # Method: formulate the new rows as the query result
-        merged_rows = merge(assignment_table_name=table_name, time_vars=time_vars, attributes=attributes)
+        merged_rows = merge(assignment_table_name=table_name, time_vars=time_vars, attributes=attributes, new_assignments=newly_inserted_assignments)
+        print(f"DEBUG - merged_rows of table {table_name}: {merged_rows}")
 
         # insert the merged_rows (aid generated)
         for row in merged_rows:
@@ -286,7 +297,7 @@ def update_assignment_table(event_atoms: list[EventAtom], gap_atoms: list[Arithm
                 # row['gap_atoms'] = evaluate(gap_atoms=gap_atoms, time_var_assignments=time_var_assignments)
                 res = insert_row_to_table(row_dict=row, table_name=table_name)
 
-    print(f'assignment table {table_name} update completed on this event batch')
+    # print(f'assignment table {table_name} update completed on this event batch')
 
 
 def find_newly_complete_body_assignment(body_table: str, time_vars: list, batch_timestamp: int) -> list[str]:
@@ -294,11 +305,14 @@ def find_newly_complete_body_assignment(body_table: str, time_vars: list, batch_
     return result as [bid1, bid2....] ; attribute and time var values can be queried using sql
     '''
     time_vars_condition_not_null = ''
-    time_vars_condition_batch_ts = ''
+    time_vars_condition_new = '('
     for time_var in time_vars:
-        time_vars_condition_not_null += f'{time_var} is not NULL and ('
-        time_vars_condition_batch_ts += f'{time_var}={batch_timestamp} or'
-    time_vars_condition = time_vars_condition_not_null + time_vars_condition_batch_ts[:-2] + ')'
+        time_vars_condition_not_null += f'{time_var} is not NULL and '
+    for time_var in time_vars:
+        time_vars_condition_new += f'{time_var}' + '_prime' + f'={batch_timestamp} or '
+    time_vars_condition_new = time_vars_condition_new[:-3] + ')'
+
+    time_vars_condition = time_vars_condition_not_null + time_vars_condition_new
 
     find_sql = f'''select aid from {body_table}
     where {time_vars_condition};
@@ -323,8 +337,8 @@ def find_newly_updated_head_assignment(head_table: str, time_vars: list, batch_t
     '''
     time_vars_condition_batch_ts = ''
     for time_var in time_vars:
-        time_vars_condition_batch_ts += f'{time_var}={batch_timestamp} or'
-    time_vars_condition_batch_ts = time_vars_condition_batch_ts[:-2]
+        time_vars_condition_batch_ts += f'{time_var}' + '_prime' + f'={batch_timestamp} or'
+    time_vars_condition_batch_ts = time_vars_condition_batch_ts[:-3]
 
     find_sql = f'''select aid from {head_table}
     where {time_vars_condition_batch_ts};
@@ -349,7 +363,7 @@ def extends(body_table: str, head_table: str, existing_bid: str, existing_hid: s
     '''
 
     select_existing_bid = f'''select {', '.join(r.body_attributes)}, {', '.join(r.body_time_vars)}
-    from {body_table} where aid={existing_bid};
+    from {body_table} where aid='{existing_bid}';
     '''
     try:
         cur.execute(select_existing_bid)
@@ -357,13 +371,13 @@ def extends(body_table: str, head_table: str, existing_bid: str, existing_hid: s
         column_names = [description[0] for description in cur.description]
         # Convert rows to list of dictionaries
         body_rows_dict = [dict(zip(column_names, row)) for row in body_rows]
-        print(f'body_rows_dict: {body_rows_dict}')
+        # print(f'body_rows_dict: {body_rows_dict}')
     except Exception as e:
         body_rows_dict = {}
         print(f"Error occurred when executing {select_existing_bid}: {e}")
 
     select_existing_hid = f'''select {', '.join(r.head_attributes)}, {', '.join(r.head_time_vars)}
-    from {head_table} where aid={existing_hid};
+    from {head_table} where aid='{existing_hid}';
     '''
     try:
         cur.execute(select_existing_hid)
@@ -371,21 +385,25 @@ def extends(body_table: str, head_table: str, existing_bid: str, existing_hid: s
         column_names = [description[0] for description in cur.description]
         # Convert rows to list of dictionaries
         head_rows_dict = [dict(zip(column_names, row)) for row in head_rows]
-        print(f'head_rows_dict: {head_rows_dict}')
+        # print(f'head_rows_dict: {head_rows_dict}')
     except Exception as e:
         head_rows_dict = {}
         print(f"Error occurred when executing {select_existing_hid}: {e}")
 
     select_new_hid = f'''select {', '.join(r.head_attributes)}, {', '.join(r.head_time_vars)}
-    from {head_table} where aid={new_hid};
+    from {head_table} where aid='{new_hid}';
     '''
     try:
         cur.execute(select_new_hid)
         new_head_rows = cur.fetchall()
         column_names = [description[0] for description in cur.description]
-        # Convert rows to list of dictionaries
-        new_head_rows_dict = [dict(zip(column_names, row)) for row in new_head_rows]
-        print(f'head_rows_dict: {new_head_rows_dict}')
+        if len(new_head_rows) != 1:
+            print(f'debug - extends - selecting new hid {new_hid} failed')
+            new_head_rows_dict = {}
+        else:
+            # Convert rows to list of dictionaries
+            new_head_rows_dict = dict(zip(column_names, new_head_rows[0]))
+            # print(f'head_rows_dict: {new_head_rows_dict}')
     except Exception as e:
         new_head_rows_dict = {}
         print(f"Error occurred when executing {select_new_hid}: {e}")
@@ -400,27 +418,63 @@ def extends(body_table: str, head_table: str, existing_bid: str, existing_hid: s
     return True
 
 
+def check_if_assignment_complete(hid: str, head_time_vars: list, head_table_name: str, con=con, cur=cur) -> int or None:
+    # Construct SQL conditions for each time variable
+    not_null_conditions = ' AND '.join([f"{var} IS NOT NULL AND typeof({var}) = 'integer'" for var in head_time_vars])
+
+    check_sql = f'''select 1 from {head_table_name} 
+    where aid='{hid}' AND {not_null_conditions};'''
+
+    print(f'check_sql - check_if_assignment_complete: {check_sql}')
+    try:
+        cur.execute(check_sql)
+        res = cur.fetchall()
+
+        # Return True if the query found a matching row, otherwise False
+        return res is not None
+    except Exception as e:
+        print(f"Error occurred - check_if_assignment_complete: {e}")
+        return None
+
+
+def mark_bid_complete(body_table_name: str, bid: str) -> int:
+    # Prepare the SQL statement to update the 'match' column
+    update_sql = f"UPDATE {body_table_name} SET matched = ? WHERE aid = ?;"
+    try:
+        cur.execute(update_sql, (True, bid))
+        con.commit()
+        return True
+
+    except Exception as e:
+        print(f"Error occurred - mark_bid_complete: {e}")
+        return False
+
+
 def update_extension_table(body_table_name: str, head_table_name: str, extension_table_name: str, r: Rule, batch_timestamp: int):
     # for each complete body assignment (all time_var are assigned in the body_table_name)
     newly_complete_bids = find_newly_complete_body_assignment(body_table=body_table_name, time_vars=r.body_time_vars, batch_timestamp=batch_timestamp)
     for bid in newly_complete_bids:
         find_time_var_assignment = f'''select {', '.join(r.body_time_vars)}
-            from {body_table_name} where aid={bid};
+            from {body_table_name} where aid='{bid}';
             '''
         try:
             cur.execute(find_time_var_assignment)
             body_rows = cur.fetchall()
             column_names = [description[0] for description in cur.description]
-            # Convert rows to list of dictionaries
-            body_time_var_assignment = [dict(zip(column_names, row)) for row in body_rows]
-            print(f'body_rows_dict: {body_time_var_assignment}')
+            if len(body_rows) != 1:
+                print(f'debug - update_extension_table - {body_table_name} find time var assignment of aid {bid} failed')
+                body_time_var_assignment = {}
+            else:
+                # Convert rows to list of dictionaries
+                body_time_var_assignment = dict(zip(column_names, body_rows[0]))
+                # print(f'body_rows_dict: {body_time_var_assignment}')
         except Exception as e:
             body_time_var_assignment = {}
             print(f"Error occurred when executing {find_time_var_assignment}: {e}")
         # add row to EXT
         ext_row = {'bid': bid, 'hid': None, 'deadline': extended_deadline(rule=r, time_var_assignment=body_time_var_assignment)}
         res = insert_row_to_table(row_dict=ext_row, table_name=extension_table_name)
-        print(f'EXT insertion: {res}')
+        # print(f'EXT insertion: {res}')
 
     # for each newly updated hid
     hids = find_newly_updated_head_assignment(head_table=head_table_name, time_vars=r.head_time_vars, batch_timestamp=batch_timestamp)
@@ -436,90 +490,145 @@ def update_extension_table(body_table_name: str, head_table_name: str, extension
         for (ebid, ehid, ddl) in rows:
 
             if extends(body_table=body_table_name, head_table=head_table_name, existing_bid=ebid, existing_hid=ehid, new_hid=hid, r=r):
-                body_select_sql = f"select {', '.join(r.body_time_vars)} from {body_table_name} where aid={ebid};"
+                body_select_sql = f"select {', '.join(r.body_time_vars)} from {body_table_name} where aid='{ebid}';"
                 try:
                     cur.execute(body_select_sql)
                     body_rows = cur.fetchall()
                     column_names = [description[0] for description in cur.description]
-                    # Convert rows to list of dictionaries
-                    body_time_var_assignment = [dict(zip(column_names, row)) for row in body_rows]
-                    print(f'body_rows_dict: {body_time_var_assignment}')
+                    if len(body_rows) != 1:
+                        print(f'debug - update_extension_table - {body_table_name} find time var assignment of aid {ebid} failed')
+                        body_time_var_assignment = {}
+                    else:
+                        # Convert rows to list of dictionaries
+                        body_time_var_assignment = dict(zip(column_names, body_rows[0]))
+                        # print(f'body_rows_dict: {body_time_var_assignment}')
                 except Exception as e:
                     body_time_var_assignment = {}
                     print(f"Error occurred when executing {body_select_sql}: {e}")
 
-                head_select_sql = f"select {', '.join(r.head_time_vars)} from {head_table_name} where aid={ehid};"
-                try:
-                    cur.execute(head_select_sql)
-                    head_rows = cur.fetchall()
-                    column_names = [description[0] for description in cur.description]
-                    # Convert rows to list of dictionaries
-                    head_time_var_assignment = [dict(zip(column_names, row)) for row in head_rows]
-                    print(f'head_rows_dict: {head_time_var_assignment}')
-                except Exception as e:
+                if ehid:
+                    head_select_sql = f"select {', '.join(r.head_time_vars)} from {head_table_name} where aid='{ehid}';"
+                    try:
+                        cur.execute(head_select_sql)
+                        head_rows = cur.fetchall()
+                        column_names = [description[0] for description in cur.description]
+                        if len(head_rows) != 1:
+                            print(f'debug - update_extension_table - {head_table_name} find time var assignment of aid {ehid} failed')
+                            head_time_var_assignment = {}
+                        else:
+                            # Convert rows to list of dictionaries
+                            head_time_var_assignment = dict(zip(column_names, head_rows[0]))
+                            # print(f'head_rows_dict: {head_time_var_assignment}')
+                    except Exception as e:
+                        head_time_var_assignment = {}
+                        print(f"Error occurred when executing {head_select_sql}: {e}")
+                else:
                     head_time_var_assignment = {}
-                    print(f"Error occurred when executing {body_select_sql}: {e}")
 
                 assignment_dict = {**body_time_var_assignment, **head_time_var_assignment}
 
                 if sat_test(arithmetic_atoms=r.body_arithmetic_atoms+r.head_arithmetic_atoms, assignment_dict=assignment_dict):
                     # add row to EXT
-                    ext_row = {'bid': ebid, 'hid': hid,
-                               'Deadline': extended_deadline(rule=r, time_var_assignment=assignment_dict)}
+                    if check_if_assignment_complete(hid=hid, head_time_vars=r.head_time_vars, head_table_name=head_table_name, con=con, cur=cur):
+                        ext_row = {'bid': ebid, 'hid': hid, 'Deadline': None}
+                        # mark bid row in the BA table as complete
+                        mark_bid_complete(body_table_name=body_table_name, bid=ebid)
+                    else:
+                        ext_row = {'bid': ebid, 'hid': hid,
+                                   'Deadline': extended_deadline(rule=r, time_var_assignment=assignment_dict)}
                     res = insert_row_to_table(row_dict=ext_row, table_name=extension_table_name)
-                    print(f'EXT insertion: {res}')
+                    # print(f'EXT insertion: {res}')
 
 
 def detect(extension_table_name: str, batch_timestamp: int) -> dict[str: list[tuple]]:
     detect_sql = f'''select bid, hid from {extension_table_name}
-    where deadline > {batch_timestamp}
+    where deadline < {batch_timestamp}
     '''
     try:
         cur.execute(detect_sql)
-        violation = {extension_table_name: cur.fetchall()}
+        rows = cur.fetchall()
+        violation = {extension_table_name: [row for row in rows]}
         return violation
     except Exception as e:
         print(f"Error occurred: {e}")
         return {extension_table_name: []}
 
 
+def print_table(table_name: str, cur=cur, con=con):
+    # Fetch column headers
+    cur.execute(f"PRAGMA table_info({table_name})")
+    columns = [col[1] for col in cur.fetchall()]  # Column names are in the second position
+
+    # Fetch all rows from the table
+    cur.execute(f"SELECT * FROM {table_name}")
+    rows = cur.fetchall()
+
+    # Print the table with headers using tabulate
+    print(tabulate(rows, headers=columns, tablefmt="grid"))
+
+
 def orchestrator(event_folder=EVENT_FOLDER, file_path=EVENT_FILE, window_size=WINDOW_SIZE, con=con, cur=cur):
 
     batch_generator = parse_batches_generator(file_path)
+    print(f"batch_generator created from parsing {file_path}")
 
     # Process each batch one at a time
     for batch in batch_generator:
-        print(f"Batch ID: {batch['batch_id']}, Timestamp: {batch['timestamp']}")
+        print('=' * 100)
+        print(f"Now processing Batch ID: {batch['batch_id']}, Timestamp: {batch['timestamp']}")
 
         batch_id = batch['batch_id']
         batch_timestamp = batch['timestamp']
         batch_events = batch['events']
 
         delete_old_events(batch_timestamp=batch_timestamp, window_size=window_size, con=con, cur=cur)
+        print(f"deleted old events {WINDOW_SIZE} later than the batch timestamp {batch_timestamp}")
+
         store_events(event_batch=batch_events, batch_timestamp=batch_timestamp, event_folder=event_folder, window_size=window_size, cur=cur)
+        print(f"Stored the batch of {batch['batch_id']}: {batch['timestamp']} to events table")
+        print_table(table_name='events')
+
         deletion_list = form_deletion_set(cur=cur)
+        print(f"Deletion list formed: {deletion_list}")
+
         # carry out deletion in the event table
         deletion_from_events(deletion_list=deletion_list, con=con, cur=cur)
-        # carry out deletion in all the BA, HA, and EXT
-        Bids = deletion_from_BA(deletion_list=deletion_list, cur=cur)
-        Hids = deletion_from_HA(deletion_list=deletion_list, cur=cur)
-        delete_from_EXT(Bids=Bids, Hids=Hids)
+        print(f"deletion from the events table completed.")
 
-        ################ batch processing complete, violation detection starts ####################
+        # carry out deletion in all the BA, HA, and EXT
+        Bids = deletion_from_BA(deletion_list=deletion_list, rules=rules, cur=cur)
+        print(f"deletion from the all BA table completed : {Bids}")
+
+        Hids = deletion_from_HA(deletion_list=deletion_list, rules=rules, cur=cur)
+        print(f"deletion from the all HA table completed : {Hids}")
+
+        delete_from_EXT(Bids=Bids, Hids=Hids)
+        print(f"deletion from the all EXT table completed ")
+
+        print("################ batch processing complete, violation detection starts ####################")
         all_violations = {}
         prepared_event_batch = get_event_batch(event_table=EVENT_TABLE, batch_timestamp=batch_timestamp, conn=con, cur=cur)
+        print(f'the event batch that algorithm is going to run on: {prepared_event_batch} \n')
 
         for r in rules:
-            # TODO: assignment table are empty, need to find out why?
             update_assignment_table(event_atoms=r.body_event_atoms, gap_atoms=r.body_arithmetic_atoms,
                                     time_vars=r.body_time_vars, attributes=r.body_attributes, event_batch=prepared_event_batch,
+                                    batch_timestamp=batch_timestamp,
                                     table_name='body_assignment_' + str(r.rule_id))
+            print_table(table_name='body_assignment_' + str(r.rule_id))
+
             update_assignment_table(event_atoms=r.head_event_atoms, gap_atoms=r.head_arithmetic_atoms,
                                     time_vars=r.head_time_vars, attributes=r.head_attributes, event_batch=prepared_event_batch,
+                                    batch_timestamp=batch_timestamp,
                                     table_name='head_assignment_' + str(r.rule_id))
+            print_table(table_name='head_assignment_' + str(r.rule_id))
+
             update_extension_table(body_table_name='body_assignment_' + str(r.rule_id),
                                    head_table_name='head_assignment_' + str(r.rule_id),
                                    extension_table_name='extension_' + str(r.rule_id), r=r, batch_timestamp=batch_timestamp)
+            print_table(table_name='extension_' + str(r.rule_id))
+
             violations_of_this_rule = detect(extension_table_name='extension_' + str(r.rule_id), batch_timestamp=batch_timestamp)
             all_violations.update(violations_of_this_rule)
+
         print(all_violations)

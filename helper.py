@@ -68,11 +68,11 @@ def build_theta(arithmetic_atoms: list[ArithmeticAtom], assignment_dict: dict) -
         if var in z3_vars:
             solver.add(z3_vars[var] == value)
 
-    # solver.add(z3_vars['x'] == 14)
-    # Print the constraints in the solver
-    print("Constraints in the current solver:")
-    for constraint in solver.assertions():
-        print(constraint)
+    # # Print the constraints in the solver
+    # print("Constraints in the current solver:")
+    # for constraint in solver.assertions():
+    #     print(constraint)
+
     return solver
 
 def sat_test(arithmetic_atoms: list[ArithmeticAtom], assignment_dict: dict) -> int:
