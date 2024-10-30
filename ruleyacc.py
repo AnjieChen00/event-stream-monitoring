@@ -85,9 +85,14 @@ def p_theta(p):
 		|	LTE'''
     p[0] = p[1]
 
-def p_npair(p):
-    'npair	: 	ID pm NUMBER'
-    p[0] = (p[1], p[2], p[3])
+def p_lhs(p):
+    '''lhs	: 	ID pm ID'''
+    p[0] = {}
+    if (p[2] == '+'):
+        p[0]["coefficient_vector"] = [1,1]
+    else:
+        p[0]["coefficient_vector"] = [1,-1]
+    p[0]["variables"] = [p[1],p[3]]
 
 def p_pm(p):
     '''pm	: 	PLUS
@@ -120,11 +125,11 @@ def p_aexts(p):
         p[o].extend(p[3][:]) 
 
 def p_aext(p):
-    'aext	: 	ID theta npair'
+    'aext	: 	lhs theta NUMBER'
     p[0] = {}
-    p[0]["head_id"] = p[1]
-    p[0]["theta"] = p[2]
-    p[0]["attribute_pair"] = p[3]
+    p[0]["left_hand_side"] = p[1]
+    p[0]["comparative_operator"] = p[2]
+    p[0]["right_constant"] = p[3]
 
 def p_labels(p):
     '''labels	: 	ID COMMA labels
@@ -147,7 +152,7 @@ S1: calcsum(a1, a2; ax=SUM(x)) <-
 eva(a1, a2; x)@z IN SLIDING (s, 5),
 # Business Rule
 R1: (RentBike(Bid, Cid)@x, ReturnBike(Bid, Cid)@y) -> 
-(x <= y - 24)
+(x - y <= 24)
 '''
 result = parser.parse(s)
 print(result)
