@@ -10,7 +10,7 @@ EVENT_TABLE = 'events'
 DBNAME = 'monitor.db'
 WINDOW_SIZE = 864000 #10 days in unix time(presented by seconds)
 EVENT_FOLDER = 'events/'
-EVENT_FILE = 'simplified_online_shopping_events.txt'
+EVENT_FILE = 'simplified_online_shopping_events2.txt'
 class EventType:
     def __init__(self, event_type_name: str,
                  event_time_granularity: int,
@@ -211,8 +211,8 @@ picking = EventType(event_type_name='picking',
                     event_report_time_granularity=1, event_report_time_no_skipping=False,
                     event_report_time_no_skipping_granularity=None,
                     max_delay_scope=3,
-                    attributes={'order_id': 'TEXT', 'item_id': 'TEXT', 'warehouse_id': 'TEXT'},
-                    unique=set(['order_id', 'item_id', 'warehouse_id', 'event_time']))
+                    attributes={'order_id': 'TEXT', 'package_id': 'TEXT', 'item_id': 'TEXT', 'warehouse_id': 'TEXT'},
+                    unique=set(['order_id', 'package_id', 'item_id', 'warehouse_id', 'event_time']))
 
 packing = EventType(event_type_name='packing',
                     event_time_granularity=1, event_time_no_skipping=False,
@@ -274,8 +274,16 @@ confirm_delivery = EventType(event_type_name='confirm_delivery',
                     attributes={'package_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
                     unique=set(['tracking_number']))
 
+# there could be multiple picking that corresponds to one packing
+# one picking can only have one packing
 event_stream = [place_order, picking, packing, assign_carrier, print_shipping_label, ship, deliver, confirm_delivery]
-constraints = []
+c1 = Constraint(body_event_label="a1", body_event_type_name="packing", body_attributes={"order_id": "x", "package_id": "y"},
+               min_delay=0, max_delay=2, comparative_keyword="EARLIER", min_count=1, max_count=3,
+               head_event_label="b1", head_event_type_name="picking", head_attributes={"order_id": "x", "package_id": "y"},
+               violation_handling={("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
+                                   ("COUNT OVER", ("b1")): "DELETE b1",})
+
+constraints = [c1]
 
 # if not picked within a day, report violation; any picking shouldn't be later than a day
 r1 = Rule(rule_id=101, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')],
@@ -289,6 +297,7 @@ r2 = Rule(rule_id=102, body=[EventAtom(predicate='place_order', attributes=['use
                ArithmeticAtom(variables=['x', 'z'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=90000),
                ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=88000),])
 rules=[r2]
+
 # ############################################################################################################
 # event_stream = [RentBike,ReturnBike]
 # event_stream = [Pay, Schedule]

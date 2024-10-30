@@ -309,17 +309,3 @@ def eliminate_var(var: str, atoms: list[ArithmeticAtom]) -> list[ArithmeticAtom]
     return list(set(list(result) + without_var))
 
 
-class SQL_Factory:
-    def __init__(self):
-        pass
-
-
-def evaluate(gap_atoms: list[ArithmeticAtom], time_var_assignments: dict) -> list[ArithmeticAtom] or None:
-    # if not sat_test(arithmetic_atoms=gap_atoms, time_var_assignments=time_var_assignments):
-    #     print()
-    #     return None
-    # for gap_atom in gap_atoms:
-    #     var1, var2 = gap_atom.variables
-    #     if var1 in time_var_assignments and var
-    pass
-

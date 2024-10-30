@@ -1,19 +1,7 @@
-0: 646
-{event_type_name: place_order; user_id: 3666; order_id: 27234; item_id_quantity_mapping: {370: 2, 251: 1}; payment_method: apple pay; payment_amount: 9782.0; payment_tracking_id: 27284; event_time: 645}
-END
 1: 700
-{event_type_name: picking; order_id: 27234; package_id: 2522514711; item_id: 370; warehouse_id: 403; event_time: 699}
-{event_type_name: picking; order_id: 27234; package_id: 2522514712; item_id: 370; warehouse_id: 403; event_time: 695}
 {event_type_name: place_order; user_id: 3666; order_id: 27235; item_id_quantity_mapping: {253: 3, 254: 3}; payment_method: apple pay; payment_amount: 2.0; payment_tracking_id: 27285; event_time: 700}
 END
-2: 701
-{event_type_name: picking; order_id: 27234; package_id: 2522514811; item_id: 251; warehouse_id: 443; event_time: 699}
-END
-3: 800
-{event_type_name: packing; order_id: 27234; package_id: 2522514711; item_id_quantity_mapping: {370: 1}; warehouse_id: 403; event_time: 799}
-END
 4: 810
-{event_type_name: print_shipping_label; package_id: 2522514711; carrier_id: 18; tracking_number: 9611020987654312345670; warehouse_id: 403; event_time: 808}
 {event_type_name: picking; order_id: 27235; package_id: 2522514811; item_id: 253; warehouse_id: 403; event_time: 807}
 {event_type_name: picking; order_id: 27235; package_id: 2522514811; item_id: 253; warehouse_id: 403; event_time: 808}
 {event_type_name: picking; order_id: 27235; package_id: 2522514811; item_id: 253; warehouse_id: 403; event_time: 809}

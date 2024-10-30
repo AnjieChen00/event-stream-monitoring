@@ -182,33 +182,45 @@ def constraint_translation(c: Constraint):
     where body.event_type_name='{c.body_event_type_name}'
     )
     '''
+    print(f'debug - constraint_translation BASE CTE is {base_table_query}')
 
-    if c.min_delay:
-        min_delay_violation_query = base_table_query + f'''
-        select * from base where body_event_time + {c.min_delay} < head_event_time;
-        '''
-        # there is a corresponding violation handling, which should be deleting both (parsing should handle this)
-        if ("TIME UNDER", (c.body_event_label, c.head_event_label)) in c.violation_handling:
+    if c.comparative_keyword == 'LATER':
+        if c.min_delay and ("TIME UNDER", (c.body_event_label, c.head_event_label)) in c.violation_handling:
+            min_delay_violation_query = base_table_query + f'''
+            select * from base where body_event_time + {c.min_delay} < head_event_time;
+            '''
+            # there is a corresponding violation handling, which should be deleting both (parsing should handle this)
             queries["TIME UNDER"] = min_delay_violation_query
+    elif c.comparative_keyword == 'EARLIER':
+        if c.max_delay and ("TIME OVER", (c.body_event_label, c.head_event_label)) in c.violation_handling:
+            # head event was too early
+            max_delay_violation_query = base_table_query + f'''
+                       select * from base where body_event_time - {c.max_delay} > head_event_time;
+                       '''
+            # there is a corresponding violation handling, which should be deleting both (parsing should handle this)
+            queries["TIME OVER"] = max_delay_violation_query
+    else:
+        print("illegal comparative keyword")
 
-    if c.max_count:
-        # max(head_event_report_time) as latest_head_event_report_time,
+    if c.max_count and ("COUNT OVER", (c.head_event_label)) in c.violation_handling:
+        # not using max(head_event_report_time) as latest_head_event_report_time because could be in the same batch
         max_count_violation_query = base_table_query + '''
-        SELECT b1.body_event_id as body_event_id,
-        b1.head_event_id as head_event_id
-        FROM base AS b1
-        JOIN (
-            SELECT body_event_id, MAX(head_event_report_time) AS latest_head_event_report_time
-            FROM base
-            GROUP BY body_event_id
-            HAVING COUNT(head_event_id) > 1
-        ) AS b2
-        ON b1.body_event_id = b2.body_event_id
-        AND b1.head_event_report_time = b2.latest_head_event_report_time;
-        '''
+        , ranked_events AS (
+            SELECT 
+                b1.body_event_id AS body_event_id,
+                b1.head_event_id AS head_event_id,
+                b1.head_event_time AS head_event_time,
+                ROW_NUMBER() OVER (
+                    PARTITION BY b1.body_event_id 
+                    ORDER BY b1.head_event_time DESC
+                ) AS rank,
+                COUNT(b1.head_event_id) OVER (PARTITION BY b1.body_event_id) AS total_count
+            FROM base AS b1
+        )''' + f'''
+        SELECT body_event_id, head_event_id FROM ranked_events WHERE rank <= total_count - {c.max_count};'''
         # there is a corresponding violation handling, which should be deleting the head event in the current batch (parsing should handle this)
-        if ("COUNT OVER", (c.head_event_label)) in c.violation_handling:
-            queries["COUNT OVER"] = max_count_violation_query
+        queries["COUNT OVER"] = max_count_violation_query
+
 
     return queries
 

@@ -119,14 +119,19 @@ def store_events(event_batch: dict, batch_timestamp: int, event_folder=EVENT_FOL
 
 def form_deletion_set(cur=cur):
     deletion_set = set()
+    print('d' *100)
     for c in constraints:
         queries = constraint_translation(c)
+
         for handling, query in queries.items():
+            print(handling)
+            print(query)
+
             rows = cur.execute(query).fetchall()
             if handling == 'COUNT OVER':
                 for row in rows:
                     deletion_set.add(row['head_event_id'])
-            if handling == 'TIME UNDER':
+            if handling == 'TIME UNDER' or handling == 'TIME OVER':
                 for row in rows:
                     deletion_set.add(row['body_event_id'])
                     deletion_set.add(row['head_event_id'])
@@ -135,20 +140,20 @@ def form_deletion_set(cur=cur):
 def deletion_from_events(deletion_list, con=con, cur=cur):
     for event_id in deletion_list:
         sql = f'''delete from {EVENT_TABLE}
-        where event_id={event_id};
+        where event_id='{event_id}';
         '''
         res = cur.execute(sql)
         con.commit()
         print(f'successful deleted event_id {event_id}')
 
 
-def deletion_from_BA(deletion_list, rules=rules, con=con, cur=cur):
+def deletion_from_BA(deletion_list, rules=rules, con=con, cur=cur) -> dict:
     Bids = {}
     for event_id in deletion_list:
         for r in rules:
             rule_id = r.rule_id
             sql_select = f'''
-                            SELECT Bid 
+                            SELECT aid
                             FROM body_assignment_{rule_id}
                             WHERE Associated_event_ids LIKE '%{event_id}%'
                         '''
@@ -156,42 +161,50 @@ def deletion_from_BA(deletion_list, rules=rules, con=con, cur=cur):
                 cur.execute(sql_select)
                 rows = cur.fetchall()
                 # Collect the Bids of the rows to be deleted
-                Bids[rule_id] = [row['Bid'] for row in rows]
+                Bids[rule_id] = [row['aid'] for row in rows]
 
                 delete_sql = f'''delete from body_assignment_{rule_id}
-                where Associated_event_ids like '%{event_id}%'
-                '''
-                cur.execute(delete_sql)
-                con.commit()
-            except:
-                print('Deletion from BA failed')
+                                            where Associated_event_ids like '%{event_id}%'
+                                            '''
+                try:
+                    cur.execute(delete_sql)
+                    con.commit()
+                except Exception as e:
+                    print(f"Error occurred in deletion_from_BA {delete_sql} : {e}")
+
+            except Exception as e:
+                print(f"Error occurred in deletion_from_BA select: {sql_select} : {e}")
+
 
     return Bids
 
 
-def deletion_from_HA(deletion_list, rules=rules, con=con, cur=cur):
+def deletion_from_HA(deletion_list, rules=rules, con=con, cur=cur) -> dict:
     Hids = {}
     for event_id in deletion_list:
         for r in rules:
             rule_id = r.rule_id
             sql_select = f'''
-                            SELECT Hid 
-                            FROM body_assignment_{rule_id}
+                            SELECT aid 
+                            FROM head_assignment_{rule_id}
                             WHERE Associated_event_ids LIKE '%{event_id}%'
                         '''
             try:
                 cur.execute(sql_select)
                 rows = cur.fetchall()
                 # Collect the Hids of the rows to be deleted
-                Hids[rule_id] = [row['Hid'] for row in rows]
+                Hids[rule_id] = [row['aid'] for row in rows]
                 delete_sql = f'''delete from head_assignment_{rule_id}
-                where Associated_event_ids like '%{event_id}%'
-                '''
-                cur.execute(delete_sql)
-                con.commit()
+                                    where Associated_event_ids like '%{event_id}%'
+                                    '''
+                try:
+                    cur.execute(delete_sql)
+                    con.commit()
+                except Exception as e:
+                    print(f"Error occurred in deletion_from_HA {delete_sql} : {e}")
 
-            except:
-                print('Deletion from BA failed')
+            except Exception as e:
+                print(f"Error occurred in deletion_from_HA select: {sql_select} : {e}")
     return Hids
 
 
@@ -200,7 +213,7 @@ def delete_from_EXT(Bids: dict, Hids: dict, con=con, cur=cur):
         # if a bid got deleted, then we should delete the bid row in EXT
         for bid in bids:
             delete_sql = f'''delete from extension_{rule_id}
-                       where Bid='{bid}'
+                       where bid='{bid}'
                        '''
             try:
                 cur.execute(delete_sql)
@@ -213,7 +226,7 @@ def delete_from_EXT(Bids: dict, Hids: dict, con=con, cur=cur):
         # and the deadline was also recalculated with 'bid, -, ddl'
         for hid in hids:
             delete_sql = f'''delete from extension_{rule_id}
-                        where Hid='{hid}'
+                        where hid='{hid}'
                         '''
             try:
                 cur.execute(delete_sql)
