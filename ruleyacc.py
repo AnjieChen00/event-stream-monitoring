@@ -57,13 +57,11 @@ def p_wtype(p):
     p[0] = p[1]
 
 def p_wm(p):
-    '''wm	: 	ID MOD NUMBER EQ NUMBER
-		| 	empty'''
+    '''wm	: 	ID MOD NUMBER EQ NUMBER'''
     p[0] = {}
-    if len(p) > 2:
-        p[0]["window_type"] = p[1]
-        p[0]["window_end"] = p[3]
-        p[0]["window_length"] = p[5]
+    p[0]["window_type"] = p[1]
+    p[0]["window_end"] = p[3]
+    p[0]["window_length"] = p[5]
 
 def p_brule(p):
     'brule		: 	ID COLON LPAREN iexts RPAREN FA LPAREN aexts RPAREN'
