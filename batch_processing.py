@@ -117,7 +117,7 @@ def store_events(event_batch: dict, batch_timestamp: int, event_folder=EVENT_FOL
         event_insert_row_from_dict(row_dict=row_dict, cur=cur)
 
 
-def form_deletion_set(cur=cur):
+def form_deletion_set(constraints: list, cur=cur):
     deletion_set = set()
     print('d' *100)
     for c in constraints:
@@ -234,6 +234,68 @@ def delete_from_EXT(Bids: dict, Hids: dict, con=con, cur=cur):
             except:
                 print(f'Deletion of hid {hid} failed')
 
+def insert_internal_events(cal_rule: CalculationRule, now: int, con=con, cur=cur):
+    # we would have to wait for all source events to be loaded (now - max_delay) and then do the calculation:
+    type_def = fetch_type_definition_from_stream_definition(event_type_name=cal_rule.body_event_atom.predicate)
+    source_event_max_delay = type_def.max_delay_scope
+
+    for event_atom in cal_rule.head:
+        # parse head event timestamp: s+n
+        if '+' in event_atom.timestamp_variable:
+            s, n = event_atom.timestamp_variable.split('+', 1)
+            n = int(n)
+        else:
+            s, n = event_atom.timestamp_variable, 0
+
+        assert s == cal_rule.window.window_end
+
+        row = None
+        if cal_rule.window.window_type == 'TUMBLING':
+            # ensure no rows where event_type_name=event_atom.predicate and event_time in the past window_length
+            check_sql = f'''select 1 from events where event_type_name='{event_atom.predicate}'
+            and event_time < {now - source_event_max_delay + n}
+            and event_time > {now - source_event_max_delay - cal_rule.window.window_length}
+            '''
+            print(f'debug - insert_internal_events TUMBLING check_sql- {check_sql}')
+            try:
+                cur.execute(check_sql)
+                row = cur.fetchone()
+            except Exception as e:
+                print(f"Error occurred when executing {check_sql}: {e}")
+
+        if cal_rule.window.window_type == 'SLIDING' or row is None:
+            select_agg_events = f'''SELECT 
+            {','.join([attr for attr in event_atom.attributes if attr != event_atom.aggregated_metric_attribute])},  
+            {event_atom.aggregation_function}({cal_rule.body_event_atom.metric_attribute}) AS {event_atom.aggregated_metric_attribute}
+            from events
+            where event_type_name = '{cal_rule.body_event_atom.predicate}'
+            and event_time <= {now - source_event_max_delay}
+            and event_time > {now - source_event_max_delay - cal_rule.window.window_length}
+            GROUP BY {','.join([attr for attr in event_atom.attributes if attr != event_atom.aggregated_metric_attribute])}
+        '''
+            print(f'debug - insert_internal_events - {select_agg_events}')
+
+            try:
+                cur.execute(select_agg_events)
+                agg_events_rows = cur.fetchall()
+                column_names = [description[0] for description in cur.description]
+                agg_events_dicts = [dict(zip(column_names, row)) for row in agg_events_rows]
+                print(agg_events_dicts)
+            except Exception as e:
+                agg_events_dicts = []
+                print(f"Error occurred when executing {select_agg_events}: {e}")
+
+            for agg_event_dict in agg_events_dicts:
+                agg_event_dict['event_type_name'] = event_atom.predicate
+                agg_event_dict['event_time'] = now - source_event_max_delay + n
+                agg_event_dict['event_report_time'] = now
+                print(f'debug - insert_internal_events - inserting {agg_event_dict}')
+                event_insert_row_from_dict(row_dict=agg_event_dict)
+
+def insert_internal_events_from_all_cal_rules(cal_rules: list, now: int, con=con, cur=cur):
+    for cal_rule in cal_rules:
+        print("debug -  insert_internal_events_from_all_cal_rules.")
+        insert_internal_events(cal_rule=cal_rule, now=now, con=con, cur=cur)
 
 # def event_handler(event_folder=EVENT_FOLDER, window_size=WINDOW_SIZE, con=con, cur=cur):
 #     delete_old_events(window_size, cur=cur)

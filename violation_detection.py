@@ -573,6 +573,8 @@ def orchestrator(event_folder=EVENT_FOLDER, file_path=EVENT_FILE, window_size=WI
     print(f"batch_generator created from parsing {file_path}")
 
     # Process each batch one at a time
+    now = 200
+
     for batch in batch_generator:
         print('=' * 100)
         print(f"Now processing Batch ID: {batch['batch_id']}, Timestamp: {batch['timestamp']}")
@@ -581,54 +583,64 @@ def orchestrator(event_folder=EVENT_FOLDER, file_path=EVENT_FILE, window_size=WI
         batch_timestamp = batch['timestamp']
         batch_events = batch['events']
 
-        delete_old_events(batch_timestamp=batch_timestamp, window_size=window_size, con=con, cur=cur)
-        print(f"deleted old events {WINDOW_SIZE} later than the batch timestamp {batch_timestamp}")
+        print(f'processing the timestamps before {batch_timestamp}')
+        while now <= batch_timestamp:
 
-        store_events(event_batch=batch_events, batch_timestamp=batch_timestamp, event_folder=event_folder, window_size=window_size, cur=cur)
-        print(f"Stored the batch of {batch['batch_id']}: {batch['timestamp']} to events table")
-        print_table(table_name='events')
+            delete_old_events(batch_timestamp=now, window_size=window_size, con=con, cur=cur)
+            print(f"deleted old events {WINDOW_SIZE} later than the batch timestamp {now}")
 
-        deletion_list = form_deletion_set(cur=cur)
-        print(f"Deletion list formed: {deletion_list}")
+            if now == batch_timestamp:
+                store_events(event_batch=batch_events, batch_timestamp=now, event_folder=event_folder, window_size=window_size, cur=cur)
+                print(f"Stored the batch of {batch['batch_id']}: {batch['timestamp']} to events table")
 
-        # carry out deletion in the event table
-        deletion_from_events(deletion_list=deletion_list, con=con, cur=cur)
-        print(f"deletion from the events table completed.")
 
-        # carry out deletion in all the BA, HA, and EXT
-        Bids = deletion_from_BA(deletion_list=deletion_list, rules=rules, cur=cur)
-        print(f"deletion from the all BA table completed : {Bids}")
 
-        Hids = deletion_from_HA(deletion_list=deletion_list, rules=rules, cur=cur)
-        print(f"deletion from the all HA table completed : {Hids}")
+            deletion_list = form_deletion_set(constraints=constraints, cur=cur)
+            print(f"Deletion list formed: {deletion_list}")
 
-        delete_from_EXT(Bids=Bids, Hids=Hids)
-        print(f"deletion from the all EXT table completed ")
+            # carry out deletion in the event table
+            deletion_from_events(deletion_list=deletion_list, con=con, cur=cur)
+            print(f"deletion from the events table completed.")
 
-        print("################ batch processing complete, violation detection starts ####################")
-        all_violations = {}
-        prepared_event_batch = get_event_batch(event_table=EVENT_TABLE, batch_timestamp=batch_timestamp, conn=con, cur=cur)
-        print(f'the event batch that algorithm is going to run on: {prepared_event_batch} \n')
+            # carry out deletion in all the BA, HA, and EXT
+            Bids = deletion_from_BA(deletion_list=deletion_list, rules=rules, cur=cur)
+            print(f"deletion from the all BA table completed : {Bids}")
 
-        for r in rules:
-            update_assignment_table(event_atoms=r.body_event_atoms, gap_atoms=r.body_arithmetic_atoms,
-                                    time_vars=r.body_time_vars, attributes=r.body_attributes, event_batch=prepared_event_batch,
-                                    batch_timestamp=batch_timestamp,
-                                    table_name='body_assignment_' + str(r.rule_id))
-            print_table(table_name='body_assignment_' + str(r.rule_id))
+            Hids = deletion_from_HA(deletion_list=deletion_list, rules=rules, cur=cur)
+            print(f"deletion from the all HA table completed : {Hids}")
 
-            update_assignment_table(event_atoms=r.head_event_atoms, gap_atoms=r.head_arithmetic_atoms,
-                                    time_vars=r.head_time_vars, attributes=r.head_attributes, event_batch=prepared_event_batch,
-                                    batch_timestamp=batch_timestamp,
-                                    table_name='head_assignment_' + str(r.rule_id))
-            print_table(table_name='head_assignment_' + str(r.rule_id))
+            delete_from_EXT(Bids=Bids, Hids=Hids)
+            print(f"deletion from the all EXT table completed ")
 
-            update_extension_table(body_table_name='body_assignment_' + str(r.rule_id),
-                                   head_table_name='head_assignment_' + str(r.rule_id),
-                                   extension_table_name='extension_' + str(r.rule_id), r=r, batch_timestamp=batch_timestamp)
-            print_table(table_name='extension_' + str(r.rule_id))
+            insert_internal_events_from_all_cal_rules(cal_rules=cal_rules, now=now, con=con, cur=cur)
 
-            violations_of_this_rule = detect(extension_table_name='extension_' + str(r.rule_id), batch_timestamp=batch_timestamp)
-            all_violations.update(violations_of_this_rule)
+            print_table(table_name='events')
 
-        print(all_violations)
+            print("################ batch processing complete, violation detection starts ####################")
+            all_violations = {}
+            prepared_event_batch = get_event_batch(event_table=EVENT_TABLE, batch_timestamp=now, conn=con, cur=cur)
+            print(f'the event batch that algorithm is going to run on: {prepared_event_batch} \n')
+
+            for r in rules:
+                update_assignment_table(event_atoms=r.body_event_atoms, gap_atoms=r.body_arithmetic_atoms,
+                                        time_vars=r.body_time_vars, attributes=r.body_attributes, event_batch=prepared_event_batch,
+                                        batch_timestamp=now,
+                                        table_name='body_assignment_' + str(r.rule_id))
+                print_table(table_name='body_assignment_' + str(r.rule_id))
+
+                update_assignment_table(event_atoms=r.head_event_atoms, gap_atoms=r.head_arithmetic_atoms,
+                                        time_vars=r.head_time_vars, attributes=r.head_attributes, event_batch=prepared_event_batch,
+                                        batch_timestamp=now,
+                                        table_name='head_assignment_' + str(r.rule_id))
+                print_table(table_name='head_assignment_' + str(r.rule_id))
+
+                update_extension_table(body_table_name='body_assignment_' + str(r.rule_id),
+                                       head_table_name='head_assignment_' + str(r.rule_id),
+                                       extension_table_name='extension_' + str(r.rule_id), r=r, batch_timestamp=now)
+                print_table(table_name='extension_' + str(r.rule_id))
+
+                violations_of_this_rule = detect(extension_table_name='extension_' + str(r.rule_id), batch_timestamp=now)
+                all_violations.update(violations_of_this_rule)
+
+            print(f"violation at timestamp{now}: {all_violations}")
+            now += 1

@@ -15,3 +15,6 @@ confirm: 36/100 batches, why is events delayed so much? would be interested to s
 10/29
 1. reserve tao's time slot 3:30-5:00 and reserve a classroom
 2. parameters to do experiments on
+
+DEBUG:
+1. test delete from BA, HA, EXT

@@ -9,6 +9,8 @@ END
 {event_type_name: picking; order_id: 27235; package_id: 2522514812; item_id: 254; warehouse_id: 403; event_time: 807}
 {event_type_name: picking; order_id: 27235; package_id: 2522514812; item_id: 254; warehouse_id: 403; event_time: 808}
 {event_type_name: picking; order_id: 27235; package_id: 2522514812; item_id: 254; warehouse_id: 403; event_time: 809}
-{event_type_name: picking; order_id: 27235; package_id: 2522514812; item_id: 254; warehouse_id: 403; event_time: 810}
 {event_type_name: packing; order_id: 27235; package_id: 2522514812; item_id_quantity_mapping: {254: 3}; warehouse_id: 403; event_time: 810}
+END
+5: 811
+{event_type_name: picking; order_id: 27235; package_id: 2522514812; item_id: 254; warehouse_id: 403; event_time: 810}
 END
