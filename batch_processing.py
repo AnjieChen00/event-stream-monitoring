@@ -20,7 +20,7 @@ def parse_batches_generator(file_path: str, event_folder=EVENT_FOLDER):
         for line in f:
             line = line.strip()
 
-            print(f'parsing line {line}')
+            # print(f'parsing line {line}')
 
             if ':' in line and not line[1:-1].startswith('event_type_name'):
                 # If we encounter a new batch while processing an existing batch, yield the existing one
@@ -80,16 +80,16 @@ def delete_old_events(batch_timestamp: int, window_size=WINDOW_SIZE, con=con, cu
 def event_insert_row_from_dict(row_dict, table_name=EVENT_TABLE, cur=cur, con=con):
     # Build the SQL query dynamically
     columns = ''
-    values = ''
+    values = []
 
     for column_name, value in row_dict.items():
         columns += (column_name + ',')
         if column_name=='event_time' or column_name=='event_report_time':
-            values += (str(value) + ',')
+            values.append(value)
         else:
-            values += (f"'{value}'" + ",")
+            values.append(value)
     columns = columns[:-1]
-    values = values[:-1]
+    values = tuple(values)
 
     execute_insertion(table_name, columns, values)
 
@@ -97,15 +97,15 @@ def event_insert_row_from_dict(row_dict, table_name=EVENT_TABLE, cur=cur, con=co
 def store_events(event_batch: dict, batch_timestamp: int, event_folder=EVENT_FOLDER, window_size=WINDOW_SIZE, cur=cur):
     # print(f"Batch ID: {batch['batch_id']}, Timestamp: {batch['timestamp']}")
     for row_dict in event_batch:
-        print(row_dict)  # Print the event dictionary
+        # print(row_dict)  # Print the event dictionary
 
         type_def = fetch_type_definition_from_stream_definition(event_type_name=row_dict['event_type_name'])
-        print(f"DEBUG - fetching type definition for event type name: {row_dict['event_type_name']}")
+        # print(f"DEBUG - fetching type definition for event type name: {row_dict['event_type_name']}")
         unique_keys = list(type_def.unique)
         ############ check max delay constraint ###########
         max_delay = type_def.max_delay_scope
         if int(row_dict['event_report_time']) - int(row_dict['event_time']) > max_delay:
-            print(f'{row_dict} not inserted because report time was delayed too much')
+            # print(f'{row_dict} not inserted because report time was delayed too much')
             continue
         ############ check window_size --- implication: max_delay < window_size####################
         if int(row_dict['event_time']) < batch_timestamp - window_size:
@@ -119,13 +119,13 @@ def store_events(event_batch: dict, batch_timestamp: int, event_folder=EVENT_FOL
 
 def form_deletion_set(constraints: list, cur=cur):
     deletion_set = set()
-    print('d' *100)
+    # print('d' *100)
     for c in constraints:
         queries = constraint_translation(c)
 
         for handling, query in queries.items():
-            print(handling)
-            print(query)
+            # print(handling)
+            # print(query)
 
             rows = cur.execute(query).fetchall()
             if handling == 'COUNT OVER':
@@ -142,9 +142,12 @@ def deletion_from_events(deletion_list, con=con, cur=cur):
         sql = f'''delete from {EVENT_TABLE}
         where event_id='{event_id}';
         '''
-        res = cur.execute(sql)
-        con.commit()
-        print(f'successful deleted event_id {event_id}')
+        try:
+            res = cur.execute(sql)
+            con.commit()
+        # print(f'successful deleted event_id {event_id}')
+        except Exception as e:
+            print(f"Error occurred in deletion_from_events {sql} : {e}")
 
 
 def deletion_from_BA(deletion_list, rules=rules, con=con, cur=cur) -> dict:
@@ -256,7 +259,7 @@ def insert_internal_events(cal_rule: CalculationRule, now: int, con=con, cur=cur
             and event_time < {now - source_event_max_delay + n}
             and event_time > {now - source_event_max_delay - cal_rule.window.window_length}
             '''
-            print(f'debug - insert_internal_events TUMBLING check_sql- {check_sql}')
+            # print(f'debug - insert_internal_events TUMBLING check_sql- {check_sql}')
             try:
                 cur.execute(check_sql)
                 row = cur.fetchone()
@@ -273,14 +276,14 @@ def insert_internal_events(cal_rule: CalculationRule, now: int, con=con, cur=cur
             and event_time > {now - source_event_max_delay - cal_rule.window.window_length}
             GROUP BY {','.join([attr for attr in event_atom.attributes if attr != event_atom.aggregated_metric_attribute])}
         '''
-            print(f'debug - insert_internal_events - {select_agg_events}')
+            # print(f'debug - insert_internal_events - {select_agg_events}')
 
             try:
                 cur.execute(select_agg_events)
                 agg_events_rows = cur.fetchall()
                 column_names = [description[0] for description in cur.description]
                 agg_events_dicts = [dict(zip(column_names, row)) for row in agg_events_rows]
-                print(agg_events_dicts)
+                # print(agg_events_dicts)
             except Exception as e:
                 agg_events_dicts = []
                 print(f"Error occurred when executing {select_agg_events}: {e}")
@@ -289,29 +292,13 @@ def insert_internal_events(cal_rule: CalculationRule, now: int, con=con, cur=cur
                 agg_event_dict['event_type_name'] = event_atom.predicate
                 agg_event_dict['event_time'] = now - source_event_max_delay + n
                 agg_event_dict['event_report_time'] = now
-                print(f'debug - insert_internal_events - inserting {agg_event_dict}')
+                # print(f'debug - insert_internal_events - inserting {agg_event_dict}')
                 event_insert_row_from_dict(row_dict=agg_event_dict)
 
 def insert_internal_events_from_all_cal_rules(cal_rules: list, now: int, con=con, cur=cur):
     for cal_rule in cal_rules:
-        print("debug -  insert_internal_events_from_all_cal_rules.")
+        # print("debug -  insert_internal_events_from_all_cal_rules.")
         insert_internal_events(cal_rule=cal_rule, now=now, con=con, cur=cur)
 
-# def event_handler(event_folder=EVENT_FOLDER, window_size=WINDOW_SIZE, con=con, cur=cur):
-#     delete_old_events(window_size, cur=cur)
-#     store_events(event_folder, window_size)
-#     deletion_list = form_deletion_set(cur=cur)
-#     # carry out deletion in the event table
-#     deletion_from_events(deletion_list=deletion_list, cur=cur)
-#     # carry out deletion in all the BA, HA, and EXT
-#     Bids = deletion_from_BA(deletion_list=deletion_list, cur=cur)
-#     Hids = deletion_from_HA(deletion_list=deletion_list, cur=cur)
-#     delete_from_EXT(Bids=Bids, Hids=Hids)
-#
-#     con.close()
-#
-#
-# if __name__ == '__main__':
-#     # unit testing
-#     event_handler()
+
 

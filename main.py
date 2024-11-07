@@ -11,3 +11,4 @@ violations = orchestrator()
 print(violations)
 print("=" * 50 + "violation detection complete" + '='* 50)
 
+con.close()

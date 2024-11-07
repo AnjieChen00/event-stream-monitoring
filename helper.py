@@ -3,13 +3,15 @@ import sqlite3
 from z3 import *
 
 from definitions import *
+from copy import deepcopy
+import time, logging
 
 
 def test_sqlite_conn():
     try:
         # Attempts to create a connection to an in-memory SQLite database.
         conn = sqlite3.connect(':memory:')
-        print("SQLite is LIVE on your system")
+        # print("SQLite is LIVE on your system")
         conn.close()
         return True
     except sqlite3.Error as e:
@@ -26,7 +28,7 @@ def connect_sqlite_db(db_name=DBNAME):
 con = connect_sqlite_db()
 cur = con.cursor()
 
-def build_theta(arithmetic_atoms: list[ArithmeticAtom], assignment_dict: dict) -> Solver:
+def build_theta(arithmetic_atoms: list[ArithmeticAtom]) -> (Solver, dict):
     # Create a Z3 solver instance
     solver = Solver()
 
@@ -63,34 +65,33 @@ def build_theta(arithmetic_atoms: list[ArithmeticAtom], assignment_dict: dict) -
         else:
             raise ValueError(f"Unsupported operator: {atom.comparative_operator}")
 
-    # Substitute the known values from the assignment dictionary
-    for var, value in assignment_dict.items():
-        if var in z3_vars:
-            solver.add(z3_vars[var] == value)
-
     # # Print the constraints in the solver
     # print("Constraints in the current solver:")
     # for constraint in solver.assertions():
     #     print(constraint)
 
-    return solver
+    return solver, z3_vars
 
-def sat_test(arithmetic_atoms: list[ArithmeticAtom], assignment_dict: dict) -> int:
+def sat_test(solver: Solver, z3_vars: dict, assignment_dict: dict) -> int:
     '''
     Evaluates whether the set of inequalities is satisfiable given partial assignments.
     :param arithmetic_atoms: List of inequalities in the form of ArithmeticAtom objects.
     :param assignment_dict: Dictionary of variable assignments in the format {var: value}.
     :return: True if the system is satisfiable, False otherwise.
     '''
-    solver = build_theta(arithmetic_atoms, assignment_dict)
-    res = solver.check()
-    print(f'Sat test result: {res}')
+    # solver.push()
+    # Substitute the known values from the assignment dictionary
+    assignment_literals = [z3_vars[var] == value for var, value in assignment_dict.items() if var in z3_vars]
+    # solver.add(*assignment_constraints) # add once to save runtime
 
-    # Check for satisfiability
-    if res == z3.sat:
-        return True
-    else:
-        return False
+    # checktime = time.time()
+    # The solver.check(*assumptions) method allows you to check satisfiability under a set of temporary assumptions (constraints) without permanently adding them to the solver.
+    res = solver.check(assignment_literals)
+    # logging.info(f'bottleneck -sat_test: {time.time() - checktime}')
+
+    # solver.pop()
+
+    return res == z3.sat
 
 
 def parse_row_to_dict(row: str) -> dict:
@@ -110,16 +111,16 @@ def fetch_type_definition_from_stream_definition(event_type_name: str) -> EventT
             return defi
     return None
 
-def execute_insertion(table_name: str, columns: str, values: str):
+def execute_insertion(table_name: str, columns: str, values: tuple):
     '''
     table_name should a string
     columns and values should be strings where fields are separated by commas
     '''
-    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
-    print(f'insertion sql: {sql}')
+    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({','.join(['?' for i in range(len(list(values)))])})"
+    # print(f'insertion sql: {sql}')
 
     try:
-        cur.execute(sql)
+        cur.execute(sql, values)
         con.commit()
     except sqlite3.Error as e:
         print(f"Error: {e}")
@@ -177,13 +178,13 @@ def inequality_add(atom: ArithmeticAtom, atom_2: ArithmeticAtom) -> ArithmeticAt
             final_result_covector.append(co)
 
     if len(final_result_vars) == 0 and len(final_result_covector) == 0:
-        print(f'result after inequality add of {atom} and {atom_2} is None')
+        # print(f'result after inequality add of {atom} and {atom_2} is None')
         return None
 
     result = ArithmeticAtom(variables=final_result_vars, coefficient_vector=final_result_covector, comparative_operator=result_op,
                             right_constant=atom.right_constant + atom_2.right_constant)
 
-    print(f'result after inequality add of {atom} and {atom_2} is {result}')
+    # print(f'result after inequality add of {atom} and {atom_2} is {result}')
 
     return result
 
@@ -192,7 +193,7 @@ def simplify_inequalities(inequalities: list[ArithmeticAtom]) -> list[Arithmetic
     operators should be formatted already <=, < or ==
     should be done last
     '''
-    print('inequalities: ' + ', '.join(str(x) for x in inequalities))
+    # print('inequalities: ' + ', '.join(str(x) for x in inequalities))
 
     res = []
     for i in range(len(inequalities)):
@@ -202,7 +203,7 @@ def simplify_inequalities(inequalities: list[ArithmeticAtom]) -> list[Arithmetic
             if j == i:
                 continue
             e2 = inequalities[j]
-            print(f'comparing {e1} and {e2}')
+            # print(f'comparing {e1} and {e2}')
 
             same = True
             if set(e1.variables) == set(e2.variables) and e1.comparative_operator == e2.comparative_operator:
@@ -244,26 +245,26 @@ def eliminate_var(var: str, atoms: list[ArithmeticAtom]) -> list[ArithmeticAtom]
             index_of_var = atom.variables.index(var)
             coefficient_of_var = atom.coefficient_vector[index_of_var]
             if coefficient_of_var != 0:
-                if coefficient_of_var < 0:
-                    new_coefficient_vector = [c/(-coefficient_of_var) for c in atom.coefficient_vector]
-                    new_atom = ArithmeticAtom(variables=atom.variables, coefficient_vector=new_coefficient_vector,
-                                              comparative_operator=atom.comparative_operator,
-                                              right_constant=atom.right_constant / (-coefficient_of_var))
-                else:
-                    new_coefficient_vector = [c / coefficient_of_var for c in atom.coefficient_vector]
-                    new_atom = ArithmeticAtom(variables=atom.variables, coefficient_vector=new_coefficient_vector,
-                                              comparative_operator=atom.comparative_operator, right_constant=atom.right_constant/coefficient_of_var)
+                # if coefficient_of_var < 0:
+                #     new_coefficient_vector = [c/(-coefficient_of_var) for c in atom.coefficient_vector]
+                #     new_atom = ArithmeticAtom(variables=atom.variables, coefficient_vector=new_coefficient_vector,
+                #                               comparative_operator=atom.comparative_operator,
+                #                               right_constant=atom.right_constant / (-coefficient_of_var))
+                # else:
+                #     new_coefficient_vector = [c / coefficient_of_var for c in atom.coefficient_vector]
+                #     new_atom = ArithmeticAtom(variables=atom.variables, coefficient_vector=new_coefficient_vector,
+                #                               comparative_operator=atom.comparative_operator, right_constant=atom.right_constant/coefficient_of_var)
 
                 # print(atom.variables, new_coefficient_vector)
 
                 # as a result from Step 1, we have a new system of inequalities
-                if new_atom.coefficient_vector[index_of_var] == 1:
+                if atom.coefficient_vector[index_of_var] == 1:
                     positive = True
                     # print('coefficient of var is 1')
-                elif new_atom.coefficient_vector[index_of_var] == -1:
+                elif atom.coefficient_vector[index_of_var] == -1:
                     negative = True
                     # print('coefficient of var is -1')
-                new_atoms.append(new_atom)
+                new_atoms.append(atom)
                 # print(f'new_atom from division: {new_atom}')
         else:
             without_var.append(atom)
@@ -309,3 +310,99 @@ def eliminate_var(var: str, atoms: list[ArithmeticAtom]) -> list[ArithmeticAtom]
     return list(set(list(result) + without_var))
 
 
+
+def promote_to_event_report_time_space(all_event_atoms: list[EventAtom], all_gap_atoms: list[ArithmeticAtom]) -> list[ArithmeticAtom]:
+    # step 1: find all max delay of each event type of all the event atoms
+    max_delay_gap_atoms = []
+    time_var_to_eliminate = []
+
+    # all_event_atoms = rule.body_event_atoms + rule.head_event_atoms
+    # all_gap_atoms = rule.body_arithmetic_atoms + rule.head_arithmetic_atoms
+
+    for event_atom in all_event_atoms:
+        time_var = event_atom.timestamp_variable
+        event_type_def = fetch_type_definition_from_stream_definition(event_type_name=event_atom.predicate)
+        if event_type_def:
+            max_delay = event_type_def.max_delay_scope
+            report_time_var = time_var + '_r'
+            # two arithmetic atoms added to list
+            max_delay_gap_atoms.append(ArithmeticAtom(variables=[time_var, report_time_var], coefficient_vector=[1, -1],
+                                                      comparative_operator= '<=', right_constant=0))
+            max_delay_gap_atoms.append(ArithmeticAtom(variables=[report_time_var, time_var], coefficient_vector=[1, -1],
+                                                      comparative_operator= '<=', right_constant=max_delay))
+            time_var_to_eliminate.append(time_var)
+        else:
+            print('event type definition not found')
+
+    all_gap_atoms = all_gap_atoms + max_delay_gap_atoms
+
+    tmp = deepcopy(all_gap_atoms)
+    for var in time_var_to_eliminate:
+        tmp = eliminate_var(var=var, atoms=tmp)
+
+    # all gap atoms' time vars are in event report time space now
+    return tmp
+
+
+def rule_all_gap_atom_promote_to_ert_space(all_rules: list[Rule]) -> list[Rule]:
+    for rule in all_rules:
+        rule.all_gap_atoms_in_ert_space = promote_to_event_report_time_space(all_event_atoms=rule.body_event_atoms + rule.head_event_atoms,
+                                                                             all_gap_atoms=rule.body_arithmetic_atoms + rule.head_arithmetic_atoms)
+    return all_rules
+
+
+def rule_build_theta(all_rules: list[Rule]) -> list[Rule]:
+    for rule in all_rules:
+        rule.body_solver, rule.body_z3_vars = build_theta(arithmetic_atoms=rule.body_arithmetic_atoms)
+        rule.head_solver, rule.head_z3_vars = build_theta(arithmetic_atoms=rule.head_arithmetic_atoms)
+        rule.all_gap_atoms_solver, rule.all_gap_atoms_z3_vars = build_theta(arithmetic_atoms=rule.body_arithmetic_atoms+rule.head_arithmetic_atoms)
+        rule.all_gap_atoms_in_ert_space_solver, rule.all_gap_atoms_in_ert_space_z3_vars = build_theta(arithmetic_atoms=rule.all_gap_atoms_in_ert_space)
+
+    return all_rules
+
+
+def cleanup(r: Rule, window_size: int, now: int, con=con, cur=cur) -> int:
+    body_table_name = 'body_assignment_' + f'{r.rule_id}'
+    head_table_name = 'head_assignment_' + f'{r.rule_id}'
+    extension_table_name = 'extension_' + f'{r.rule_id}'
+
+    ext_query = f'''select * from {extension_table_name} where deadline is not Null;'''
+    try:
+        cur.execute(ext_query)
+        rows = cur.fetchall()
+    except Exception as e:
+        rows = []
+
+    for (bid, hid, ddl) in rows:
+        # print((bid, hid, ddl))
+        if ddl is None:
+            # biggest time var from bid and hid
+            bsql = f"select {','.join(r.body_time_vars)} from {body_table_name} where aid='{bid}'"
+            try:
+                cur.execute(bsql)
+                brow = cur.fetchone()
+            except Exception as e:
+                brow = []
+                print(f'Error occured when {bsql}: {e}')
+
+            hsql = f"select {','.join(r.head_time_vars)} from {head_table_name} where aid='{hid}'"
+            try:
+                cur.execute(hsql)
+                hrow = cur.fetchone()
+            except Exception as e:
+                hrow = []
+                print(f'Error occured when {hsql}: {e}')
+
+            biggest_timestamp = max(list(brow) + list(hrow))
+            if biggest_timestamp < now - window_size:
+                # remove from BA
+                delete_b = f"delete from {body_table_name} where aid='{bid}' and matched=1;"
+                res_b = cur.execute(delete_b)
+                con.commit()
+                print(f'delete from body done: {res_b}')
+                delete_ext = f"delete from {extension_table_name} where bid='{bid}' and hid='{hid}'"
+                res_ext = cur.execute(delete_ext)
+                con.commit()
+                print(f'delete from ext done: {res_ext}')
+
+    return True

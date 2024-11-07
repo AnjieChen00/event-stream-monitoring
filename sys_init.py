@@ -111,7 +111,6 @@ def create_head_assignment(r: Rule, con=con, cur=cur):
     PRIMARY KEY (aid)
     )
     '''
-    # BLOB is storing serialized python objects by pick.dumps(obj)
     print(f'HA creation sql: {create_ha_sql}')
 
     try:
@@ -122,6 +121,41 @@ def create_head_assignment(r: Rule, con=con, cur=cur):
     return
 
 def create_extension_table(r: Rule, con=con, cur=cur):
+    # body_attributes_sql = ''
+    # body_time_var_sql = ''
+    # all_time_vars = r.body_time_vars
+    # attribute_type_mapping = {}
+    # for atom in r.body:
+    #     if isinstance(atom, EventAtom):
+    #         atom_event_type = fetch_type_definition_from_stream_definition(event_type_name=atom.predicate)
+    #         # we should be only selecting the attributes that is in the rule
+    #         for attr, type in atom_event_type.attributes.items():
+    #             if attr in r.body_attributes:
+    #                 attribute_type_mapping[attr] = type
+    #
+    # for attr, type in attribute_type_mapping.items():
+    #     body_attributes_sql += f'{attr} {type},'
+    #
+    # for time_var in list(all_time_vars):
+    #     body_time_var_sql += f'{time_var} INTEGER, {time_var}' + '_prime INTEGER,'
+    #
+    # head_attributes_sql = ''
+    # head_time_var_sql = ''
+    # all_time_vars = r.head_time_vars
+    # attribute_type_mapping = {}
+    # for atom in r.head:
+    #     if isinstance(atom, EventAtom):
+    #         atom_event_type = fetch_type_definition_from_stream_definition(event_type_name=atom.predicate)
+    #         # we should be only selecting the attributes that is in the rule
+    #         for attr, type in atom_event_type.attributes.items():
+    #             if attr in r.head_attributes:
+    #                 attribute_type_mapping[attr] = type
+    #
+    # for attr, type in attribute_type_mapping.items():
+    #     head_attributes_sql += f'{attr} {type},'
+    #
+    # for time_var in list(all_time_vars):
+    #     head_time_var_sql += f'{time_var} INTEGER, {time_var}' + '_prime INTEGER,'
 
     sql = f'''
     CREATE TABLE IF NOT EXISTS extension_{r.rule_id} (

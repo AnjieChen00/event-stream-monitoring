@@ -7,10 +7,11 @@ from scipy.stats import maxwell
 # import numpy as np
 
 EVENT_TABLE = 'events'
-DBNAME = 'monitor.db'
+# DBNAME = 'monitor.db'
+DBNAME = ':memory:'
 WINDOW_SIZE = 864000 #10 days in unix time(presented by seconds)
 EVENT_FOLDER = 'events/'
-EVENT_FILE = 'budget.txt'
+EVENT_FILE = 'online_shopping_events.txt'
 
 # some are based on sqlite3
 aggregation_function_allowed=['AVG', 'COUNT', 'MAX', 'MIN', 'SUM', 'STDEV']
@@ -89,7 +90,7 @@ class EventAtom:
         # only one metric value can exist
         if (not metric_attribute and aggregated_metric_attribute):
             internal = True
-        elif (metric_attribute and not aggregated_metric_attribute):
+        elif (metric_attribute and not aggregated_metric_attribute) or (not metric_attribute and not aggregated_metric_attribute):
             internal = False
         else:
             print("Illegal EventAtom, can only be external or internal")
@@ -159,11 +160,26 @@ class Rule:
         self.body_time_vars = list(set([item.timestamp_variable for item in self.body if isinstance(item, EventAtom)]))
         self.body_attributes = list(set([attr for item in self.body if isinstance(item, EventAtom) for attr in item.attributes]))
         self.body_arithmetic_atoms = [item for item in self.body if isinstance(item, ArithmeticAtom)]
+        self.body_solver = None # build the solver and z3 vars first
+        self.body_z3_vars = None
 
         self.head_event_atoms = [item for item in self.head if isinstance(item, EventAtom)]
         self.head_time_vars = list(set([item.timestamp_variable for item in self.head if isinstance(item, EventAtom)]))
         self.head_attributes = list(set([attr for item in self.head if isinstance(item, EventAtom) for attr in item.attributes]))
         self.head_arithmetic_atoms = [item for item in self.head if isinstance(item, ArithmeticAtom)]
+
+        self.common_attributes = [item for item in self.body_attributes if item in self.head_attributes]
+        self.common_time_vars = [item for item in self.body_time_vars if item in self.body_attributes]
+
+        self.head_solver = None
+        self.head_z3_vars = None
+
+        self.all_gap_atoms_solver = None
+        self.all_gap_atoms_z3_vars = None
+
+        self.all_gap_atoms_in_ert_space = None
+        self.all_gap_atoms_in_ert_space_solver = None
+        self.all_gap_atoms_in_ert_space_z3_vars = None
 
     def __str__(self):
         return str(self.rule_id) + ': \n' + ", ".join(str(item) for item in self.body) + " --> " + ", ".join(str(item) for item in self.head)
@@ -277,19 +293,19 @@ class CalculationRule:
 # 									})
 #
 # ############################################################################################################
-# ######################## A complete example of shipping monitoring #############################################
-# place_order = EventType(event_type_name='place_order',
-#                         event_time_granularity=1, event_time_no_skipping=False,
-#                         event_time_no_skipping_granularity=None,
-#                         event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                         event_report_time_no_skipping_granularity=None,
-#                         max_delay_scope=3,
-#                         # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                         attributes={'user_id': 'TEXT', 'order_id': 'TEXT', 'item_id_quantity_mapping': 'TEXT',
-#                                     'payment_method': 'TEXT', 'payment_amount': 'INTEGER',
-#                                     'payment_tracking_id': 'TEXT'},
-#                         unique=set(['order_id']))
-#
+######################## A complete example of shipping monitoring #############################################
+place_order = EventType(event_type_name='place_order',
+                        event_time_granularity=1, event_time_no_skipping=False,
+                        event_time_no_skipping_granularity=None,
+                        event_report_time_granularity=1, event_report_time_no_skipping=False,
+                        event_report_time_no_skipping_granularity=None,
+                        max_delay_scope=1000,
+                        # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                        attributes={'user_id': 'TEXT', 'order_id': 'TEXT', 'item_id_quantity_mapping': 'TEXT',
+                                    'payment_method': 'TEXT', 'payment_amount': 'INTEGER',
+                                    'payment_tracking_id': 'TEXT'},
+                        unique=set(['order_id']))
+
 # picking = EventType(event_type_name='picking',
 #                     event_time_granularity=1, event_time_no_skipping=False,
 #                     event_time_no_skipping_granularity=None,
@@ -298,117 +314,127 @@ class CalculationRule:
 #                     max_delay_scope=3,
 #                     attributes={'order_id': 'TEXT', 'package_id': 'TEXT', 'item_id': 'TEXT', 'warehouse_id': 'TEXT'},
 #                     unique=set(['order_id', 'package_id', 'item_id', 'warehouse_id', 'event_time']))
-#
-# packing = EventType(event_type_name='packing',
-#                     event_time_granularity=1, event_time_no_skipping=False,
-#                     event_time_no_skipping_granularity=None,
-#                     event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                     event_report_time_no_skipping_granularity=None,
-#                     max_delay_scope=3,
-#                     # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                     attributes={'order_id': 'TEXT', 'package_id': 'TEXT', 'item_id_quantity_mapping': 'TEXT', 'warehouse_id': 'TEXT'},
-#                     unique=set(['order_id', 'package_id']))
-#
-# assign_carrier = EventType(event_type_name='assign_carrier',
-#                     event_time_granularity=1, event_time_no_skipping=False,
-#                     event_time_no_skipping_granularity=None,
-#                     event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                     event_report_time_no_skipping_granularity=None,
-#                     max_delay_scope=3,
-#                     # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                     attributes={'package_id': 'TEXT', 'warehouse_id': 'TEXT', 'carrier_id': 'TEXT'},
-#                     unique=set(['package_id', 'warehouse_id', 'carrier_id']))
-#
-# print_shipping_label = EventType(event_type_name='print_shipping_label',
-#                     event_time_granularity=1, event_time_no_skipping=False,
-#                     event_time_no_skipping_granularity=None,
-#                     event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                     event_report_time_no_skipping_granularity=None,
-#                     max_delay_scope=3,
-#                     # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                     attributes={'package_id': 'TEXT', 'warehouse_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
-#                     unique=set(['tracking_number']))
-#
-# ship = EventType(event_type_name='ship',
-#                     event_time_granularity=1, event_time_no_skipping=False,
-#                     event_time_no_skipping_granularity=None,
-#                     event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                     event_report_time_no_skipping_granularity=None,
-#                     max_delay_scope=3,
-#                     # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                     attributes={'package_id': 'TEXT', 'warehouse_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
-#                     unique=set(['tracking_number']))
-#
-# deliver = EventType(event_type_name='deliver',
-#                     event_time_granularity=1, event_time_no_skipping=False,
-#                     event_time_no_skipping_granularity=None,
-#                     event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                     event_report_time_no_skipping_granularity=None,
-#                     max_delay_scope=3,
-#                     # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                     attributes={'package_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
-#                     unique=set(['tracking_number']))
-#
-# confirm_delivery = EventType(event_type_name='confirm_delivery',
-#                     event_time_granularity=1, event_time_no_skipping=False,
-#                     event_time_no_skipping_granularity=None,
-#                     event_report_time_granularity=1, event_report_time_no_skipping=False,
-#                     event_report_time_no_skipping_granularity=None,
-#                     max_delay_scope=3,
-#                     # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
-#                     attributes={'package_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
-#                     unique=set(['tracking_number']))
-#
-# # there could be multiple picking that corresponds to one packing
-# # one picking can only have one packing
-# event_stream = [place_order, picking, packing, assign_carrier, print_shipping_label, ship, deliver, confirm_delivery]
+
+picking = EventType(event_type_name='picking',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    attributes={'order_id': 'TEXT', 'item_id': 'TEXT', 'warehouse_id': 'TEXT'},
+                    unique=set(['order_id', 'item_id', 'warehouse_id', 'event_time']))
+
+packing = EventType(event_type_name='packing',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                    attributes={'order_id': 'TEXT', 'package_id': 'TEXT', 'item_id_quantity_mapping': 'TEXT', 'warehouse_id': 'TEXT'},
+                    unique=set(['order_id', 'package_id']))
+
+assign_carrier = EventType(event_type_name='assign_carrier',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                    attributes={'package_id': 'TEXT', 'warehouse_id': 'TEXT', 'carrier_id': 'TEXT'},
+                    unique=set(['package_id', 'warehouse_id', 'carrier_id']))
+
+print_shipping_label = EventType(event_type_name='print_shipping_label',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                    attributes={'package_id': 'TEXT', 'warehouse_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
+                    unique=set(['tracking_number']))
+
+ship = EventType(event_type_name='ship',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                    attributes={'package_id': 'TEXT', 'warehouse_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
+                    unique=set(['tracking_number']))
+
+deliver = EventType(event_type_name='deliver',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                    attributes={'package_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
+                    unique=set(['tracking_number']))
+
+confirm_delivery = EventType(event_type_name='confirm_delivery',
+                    event_time_granularity=1, event_time_no_skipping=False,
+                    event_time_no_skipping_granularity=None,
+                    event_report_time_granularity=1, event_report_time_no_skipping=False,
+                    event_report_time_no_skipping_granularity=None,
+                    max_delay_scope=1000,
+                    # 'item_id_quantity_mapping' string should be like {'iphone16xxyyzzz': 10, 'carpetiii0099ppp': 1}
+                    attributes={'package_id': 'TEXT', 'carrier_id': 'TEXT', 'tracking_number': 'TEXT'},
+                    unique=set(['tracking_number']))
+
+# there could be multiple picking that corresponds to one packing
+# one picking can only have one packing
+event_stream = [place_order, picking, packing, assign_carrier, print_shipping_label, ship, deliver, confirm_delivery]
 # c1 = Constraint(body_event_label="a1", body_event_type_name="packing", body_attributes={"order_id": "x", "package_id": "y"},
 #                min_delay=0, max_delay=8000, comparative_keyword="EARLIER", min_count=1, max_count=3,
 #                head_event_label="b1", head_event_type_name="picking", head_attributes={"order_id": "x", "package_id": "y"},
 #                violation_handling={("TIME OVER", ("a1", "b1")): "DELETE a1 b1",
 #                                    ("COUNT OVER", ("b1")): "DELETE b1",})
-#
-# constraints = [c1]
-#
-# # if not picked within a day, report violation; any picking shouldn't be later than a day
-# r1 = Rule(rule_id=101, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')],
-#          head=[EventAtom(predicate='picking', attributes=['order_id', 'item_id', 'warehouse_id'], timestamp_variable='y'),
-#                ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=86400)])
-#
-# # if didn't have shipping label within a day, report violation
-# r2 = Rule(rule_id=102, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')
-#     , EventAtom(predicate='packing', attributes=['order_id', 'package_id'], timestamp_variable='y')],
-#          head=[EventAtom(predicate='print_shipping_label', attributes=['package_id'], timestamp_variable='z'),
-#                ArithmeticAtom(variables=['x', 'z'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=90000),
-#                ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=88000),])
-# rules=[r2]
-#
-# ############################################################################################################
-################################# budget monitoring example ##################################################
-item_cost = EventType(event_type_name="item_cost",
-                      event_time_granularity=1, event_time_no_skipping=False, event_time_no_skipping_granularity=None,
-                      event_report_time_granularity=1, event_report_time_no_skipping=False, event_report_time_no_skipping_granularity=None,
-                      max_delay_scope=2, attributes={'account': 'TEXT', 'product_code': 'TEXT', 'service_tag': 'TEXT', 'timestamp_interval': 'TEXT', 'icost': 'REAL'},
-                      unique=set(['account', 'product_code', 'service_tag', 'timestamp_interval', 'event_time']))
-daily_cost = EventType(event_type_name="daily_cost",
-                      event_time_granularity=1, event_time_no_skipping=False, event_time_no_skipping_granularity=None,
-                      event_report_time_granularity=1, event_report_time_no_skipping=False, event_report_time_no_skipping_granularity=None,
-                      max_delay_scope=0, attributes={'account': 'TEXT', 'product_code': 'TEXT', 'service_tag': 'TEXT', 'dcost': 'REAL'},
-                      unique=set(['account', 'product_code', 'service_tag', 'event_time']))
 
-event_stream = [item_cost, daily_cost]
-cr1 = CalculationRule(rule_id=71, body=[EventAtom(predicate='item_cost', attributes=['account', 'product_code', 'service_tag', 'timestamp_interval'],
-                                                  metric_attribute='icost', timestamp_variable='z'),
-                                        Window(window_type='TUMBLING', window_length=10, window_end='s')],
-                      head=[EventAtom(predicate='daily_cost', attributes=['account', 'product_code', 'service_tag'],
-                                      timestamp_variable='s+1',
-                                      aggregated_metric_attribute='dcost', aggregation_function='SUM')])
-
-cal_rules = [cr1]
-rules = []
 constraints = []
 
+# if not picked within a day, report violation; any picking shouldn't be later than a day
+r1 = Rule(rule_id=101, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')],
+         head=[EventAtom(predicate='picking', attributes=['order_id', 'item_id', 'warehouse_id'], timestamp_variable='y'),
+               ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=86400)])
+
+# if didn't have shipping label within a day, report violation
+r2 = Rule(rule_id=102, body=[EventAtom(predicate='place_order', attributes=['user_id', 'order_id'], timestamp_variable='x')
+    , EventAtom(predicate='packing', attributes=['order_id', 'package_id'], timestamp_variable='y')],
+         head=[EventAtom(predicate='print_shipping_label', attributes=['package_id'], timestamp_variable='z'),
+               ArithmeticAtom(variables=['x', 'z'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=90000),
+               ArithmeticAtom(variables=['x', 'y'], coefficient_vector=[-1, 1], comparative_operator='<=', right_constant=88000),])
+
+rules=[r1, r2]
+cal_rules = []
+
 ############################################################################################################
+# ################################# budget monitoring example ##################################################
+# item_cost = EventType(event_type_name="item_cost",
+#                       event_time_granularity=1, event_time_no_skipping=False, event_time_no_skipping_granularity=None,
+#                       event_report_time_granularity=1, event_report_time_no_skipping=False, event_report_time_no_skipping_granularity=None,
+#                       max_delay_scope=2, attributes={'account': 'TEXT', 'product_code': 'TEXT', 'service_tag': 'TEXT', 'timestamp_interval': 'TEXT', 'icost': 'REAL'},
+#                       unique=set(['account', 'product_code', 'service_tag', 'timestamp_interval', 'event_time']))
+# daily_cost = EventType(event_type_name="daily_cost",
+#                       event_time_granularity=1, event_time_no_skipping=False, event_time_no_skipping_granularity=None,
+#                       event_report_time_granularity=1, event_report_time_no_skipping=False, event_report_time_no_skipping_granularity=None,
+#                       max_delay_scope=0, attributes={'account': 'TEXT', 'product_code': 'TEXT', 'service_tag': 'TEXT', 'dcost': 'REAL'},
+#                       unique=set(['account', 'product_code', 'service_tag', 'event_time']))
+#
+# event_stream = [item_cost, daily_cost]
+# cr1 = CalculationRule(rule_id=71, body=[EventAtom(predicate='item_cost', attributes=['account', 'product_code', 'service_tag', 'timestamp_interval'],
+#                                                   metric_attribute='icost', timestamp_variable='z'),
+#                                         Window(window_type='TUMBLING', window_length=10, window_end='s')],
+#                       head=[EventAtom(predicate='daily_cost', attributes=['account', 'product_code', 'service_tag'],
+#                                       timestamp_variable='s+1',
+#                                       aggregated_metric_attribute='dcost', aggregation_function='SUM')])
+#
+# cal_rules = [cr1]
+# rules = []
+# constraints = []
+# ############################################################################################################
 
 all_attributes = {}
 for et in event_stream:

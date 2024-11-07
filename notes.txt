@@ -18,3 +18,254 @@ confirm: 36/100 batches, why is events delayed so much? would be interested to s
 
 DEBUG:
 1. test delete from BA, HA, EXT
+2.
+
+drop table if exists events;
+drop table if exists extension_101;
+drop table if exists extension_102;
+drop table if exists body_assignment_101;
+drop table if exists body_assignment_102;
+drop table if exists head_assignment_101;
+drop table if exists head_assignment_102;
+
+removed unnecessary parts
+shifted to in-memory
+
+Bottleneck identified
+2024-11-04 15:35:46 - INFO - bottleneck::::find all bid assignments took 0.005192756652832031
+2024-11-04 15:35:46 - INFO - bottleneck::::all calculation of eddl took 2.1502223014831543
+2024-11-04 15:35:46 - INFO - bottleneck::::all insertion of complete bid to ext took 0.0060253143310546875
+
+and then I identify that the most costly function is the deadline function
+2024-11-04 15:48:54 - INFO - deadline function took 0.020588397979736328 seconds
+2024-11-04 15:48:54 - INFO - deadline function took 0.020526409149169922 seconds
+2024-11-04 15:48:54 - INFO - deadline function took 0.020625829696655273 seconds
+
+and then I break down the deadline function
+2024-11-04 15:58:37 - INFO - step 1 took 0.0
+2024-11-04 15:58:37 - INFO - step 2 took 0.032035112380981445
+2024-11-04 15:58:37 - INFO - deadline function took 0.032035112380981445 seconds
+bottleneck is at the sat test
+
+and then I break down the sat test
+2024-11-04 16:19:27 - INFO - step 1 took 0.0
+2024-11-04 16:19:27 - INFO - build_theta took 0.012390375137329102
+2024-11-04 16:19:27 - INFO - check solver took 0.014553070068359375
+2024-11-04 16:19:27 - INFO - step 2 took 0.026943445205688477
+2024-11-04 16:19:27 - INFO - deadline function took 0.026943445205688477 seconds
+
+build theta took the same time as check solver, they are all expensive
+
+move the build theta forward
+2024-11-04 22:52:51 - INFO - step 1 took 0.0
+2024-11-04 22:52:51 - INFO - step 2 took 0.0009987354278564453
+2024-11-04 22:52:51 - INFO - deadline function took 0.0009987354278564453 seconds
+2024-11-04 22:52:51 - INFO - step 1 took 0.0
+2024-11-04 22:52:51 - INFO - step 2 took 0.0010039806365966797
+2024-11-04 22:52:51 - INFO - deadline function took 0.0010039806365966797 seconds
+2024-11-04 22:52:51 - INFO - bottleneck::::find all bid assignments took 0.0029942989349365234
+2024-11-04 22:52:51 - INFO - bottleneck::::all calculation of eddl took 0.07101178169250488
+2024-11-04 22:52:51 - INFO - bottleneck::::all insertion of complete bid to ext took 0.005000591278076172
+
+
+as more batches are processed, more time needed for each batch, > 1s
+
+2024-11-05 11:13:04 - INFO - ################ batch at time 11334 processing complete, violation detection starts ####################
+2024-11-05 11:13:04 - INFO - event_batch was prepared
+
+2024-11-05 11:13:04 - INFO - body_assignment_101 updating completed took 0.3519630432128906 seconds
+2024-11-05 11:13:04 - INFO - head_assignment_101 updating completed took 0.02072739601135254 seconds
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.00099945068359375
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0009975433349609375
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0011157989501953125
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0010004043579101562
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.00012683868408203125
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0010066032409667969
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0010006427764892578
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.00099945068359375
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0009992122650146484
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:04 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:05 - INFO - extension_101 updating completed took 0.7073242664337158 seconds
+2024-11-05 11:13:05 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:05 - INFO - body_assignment_102 updating completed took 0.27628111839294434 seconds
+2024-11-05 11:13:05 - INFO - head_assignment_102 updating completed took 0.0 seconds
+2024-11-05 11:13:05 - INFO - bottleneck -sat_test: 0.0
+2024-11-05 11:13:05 - INFO - extension_102 updating completed took 0.0012230873107910156 seconds
+2024-11-05 11:13:05 - INFO - 11334 completed in 1.3614716529846191 seconds
+2024-11-05 11:13:05 - INFO - 18 :::: 11334 completed in 1.3614716529846191 seconds!
+
+seems like assignment update and ext update are half-half in contributing to the long runtime.
+new batch of 20 :::: 12551
+2024-11-05 12:23:42 - INFO - bottleneck::::insert assignment from batch's events took 0.0030753612518310547
+2024-11-05 12:23:42 - INFO - bottleneck::::merge assignments, sat test and insert took 0.23406481742858887
+2024-11-05 12:23:42 - INFO - body_assignment_101 updating completed took 0.23813891410827637 seconds
+
+2024-11-05 12:23:43 - INFO - bottleneck::::find all bid assignments took 0.0020034313201904297
+2024-11-05 12:23:43 - INFO - bottleneck::::all calculation of eddl took 0.0196688175201416
+2024-11-05 12:23:43 - INFO - bottleneck::::all insertion of complete bid to ext took 0.0020008087158203125
+2024-11-05 12:23:43 - INFO - bottleneck::::find all rows in EXT took 0.043622493743896484
+2024-11-05 12:23:43 - INFO - bottleneck::::all calculation of whether_extends_and_sat took 0.4870176315307617
+2024-11-05 12:23:43 - INFO - extension_101 updating completed took 0.5553953647613525 seconds
+
+notes: do the same experiment on Issac's implementation
+tyler - generate the same event batch change to issac's format
+
+now you have something that works - focus on the larger granularity
+lower scale you get finer granularity
+larger scale you get more cruse granularity
+used to have a summer to write the rule vs now 20 minutes
+
+
+finding 3 need to be solid
+as much as experiments done
+Tyler can help can get that comparison done (lower priority)
+
+title and abstract (need some experiment done) move to the WeChat group chat
+abstract set the tone of the report
+
+tyler can help with running the experiment
+
+
+    newly_updated_hid_rows_dicts = find_newly_updated_head_assignment(head_table=head_table_name, time_vars=r.head_time_vars, batch_timestamp=batch_timestamp)
+
+    ebid_complete_set = set()
+
+    ext_query = f'''select bid, hid, deadline from {extension_table_name} where deadline is not Null;'''
+    try:
+        cur.execute(ext_query)
+        rows = cur.fetchall()
+    except Exception as e:
+        print(f'Error occured when {ext_query}: {e}')
+        rows = []
+
+    total_extends_time = 0
+    total_sat_test = 0
+    extends_count = 0
+
+    for hid_row_dict in newly_updated_hid_rows_dicts:
+        # for each row in the EXT table (which are not satisfied yet)
+        # whether_extends_and_sat_time1 = time.time()
+        # find_all_ext_rows_time1 = time.time()
+
+        new_hid = hid_row_dict.pop('aid')
+
+
+        new_rows = []
+        for (ebid, ehid, ddl) in rows:
+            # whether_extends_and_sat_time_for1 = time.time()
+            if ddl is None:
+                print(f"{ext_query} did not work properly")
+                # ebid already sat, don't have to be test sat again as test sat is expensive
+                continue
+            if ebid in ebid_complete_set:
+                continue
+
+            extends_time = time.time()
+            # How can I limit the number of call of this function
+            # save this - every row we know already 'extends'
+            whether_extends = extends(body_table=body_table_name, head_table=head_table_name, existing_bid=ebid, existing_hid=ehid, new_hid=new_hid, r=r)
+            extends_count += 1
+            total_extends_time += (time.time() - extends_time)
+
+            if whether_extends:
+                body_select_sql = f"select {', '.join(r.body_time_vars)} from {body_table_name} where aid='{ebid}';"
+                try:
+                    cur.execute(body_select_sql)
+                    body_rows = cur.fetchall()
+                    column_names = [description[0] for description in cur.description]
+                    if len(body_rows) != 1:
+                        # print(f'debug - update_extension_table - {body_table_name} find time var assignment of aid {ebid} failed')
+                        body_time_var_assignment = {}
+                    else:
+                        # Convert rows to list of dictionaries
+                        body_time_var_assignment = dict(zip(column_names, body_rows[0]))
+                except Exception as e:
+                    body_time_var_assignment = {}
+                    print(f"Error occurred when executing {body_select_sql}: {e}")
+
+                assignment_dict = {**body_time_var_assignment, **hid_row_dict}
+
+                sat_test_time = time.time()
+                passed_sat_test = sat_test(solver=r.all_gap_atoms_solver, z3_vars=r.all_gap_atoms_z3_vars, assignment_dict=assignment_dict)
+                total_sat_test += (time.time() - sat_test_time)
+
+                if passed_sat_test == True:
+                    # add row to EXT
+                    if all(value is not None for value in hid_row_dict.values()):
+                        ext_row = {'bid': ebid, 'hid': new_hid, 'Deadline': None}
+                        # mark bid row in the BA table as complete
+                        mark_bid_complete(body_table_name=body_table_name, bid=ebid)
+                        ebid_complete_set.add(ebid)
+                    else:
+                        # saving a sat test
+                        ext_row = {'bid': ebid, 'hid': new_hid,
+                                   'Deadline': extended_deadline(rule=r, time_var_assignment=assignment_dict, passed_sat_test=passed_sat_test)}
+                        new_rows.append(ext_row)
+                    res = insert_row_to_table(row_dict=ext_row, table_name=extension_table_name)
+                    # print(f'EXT insertion: {res}')
+
+        rows = rows + new_rows
+    ######## identify 2nd part of this function's bottleneck ################
+    logging.info(f'bottleneck::::extends count {extends_count}')
+    logging.info(f'bottleneck::::whether_extends took {total_extends_time}')
+    logging.info(f'bottleneck::::sat_test took {total_sat_test}')
