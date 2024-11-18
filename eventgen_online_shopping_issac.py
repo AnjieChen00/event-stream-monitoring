@@ -1,9 +1,8 @@
 import random
 import numpy as np
 import time
-import sys
 
-batch_size, conf_size = int(sys.argv[1]), sys.argv[2]
+conf_size = 1
 t1 = time.time()
 # One day has 86400 seconds
 day = 86400
@@ -40,25 +39,17 @@ for uid in uids:
 
 res.sort(key=lambda x: x["event_time"])
 
-batchid= 0
-loc = f"./sample_events/online_shopping_events-batch_size_{batch_size}-conf_size_{conf_size}.txt"
+loc = f"./online_shopping_events_issac-batch_size_conf_size_{conf_size}.txt"
 with open(loc, "a") as f:
-	batch = ""
-	batch_count = 0
 	for i in res:
-		batch_count += 1
 		s = ""
 		curr = 0
 		for k,v in i.items():
-			s += f"{k}: {v}; "
+			s += f"{k}={v}; "
 			if k=="event_time":
 				curr = v
 		s = s[:-2]
-		batch += '{'+f"{s}"+"}\n"
-		if batch_count % batch_size == 0:
-			f.write(f"{batchid}: {curr}\n{batch}END\n")
-			batchid += 1
-			batch = ""
+		f.write(f"{curr} 1 1 {s}")
 
 #print(*res, sep='\n')
 print(f"Time taken: {time.time() - t1}s")

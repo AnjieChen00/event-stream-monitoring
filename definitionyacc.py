@@ -16,14 +16,15 @@ def p_rules(p):
         p[0].extend(p[3][:])
 
 def p_rule(p):
-    'rule	:	CREATE EVENTTYPE ID LPAREN ERT NUMBER gbool MAXDELAY NUMBER LPAREN vpairs RPAREN UNIQUE LPAREN labels RPAREN RPAREN'
+    'rule	:	CREATE EVENTTYPE ID LPAREN ERT NUMBER gbool NUMBER MAXDELAY NUMBER LPAREN vpairs RPAREN UNIQUE LPAREN labels RPAREN RPAREN'
     p[0] = {}
-    p[0]["ename"] = p[3]
-    p[0]["ertg"] = p[6]
-    p[0]["nsg"] = p[7]
-    p[0]["maxdelay"] = p[9]
-    p[0]["vps"] = p[11]
-    p[0]["unique"] = p[15] 
+    p[0]["event_type_name"] = p[3]
+    p[0]["event_report_time_granularity"] = p[6]
+    p[0]["event_report_time_no_skipping"] = p[7]
+    p[0]["event_report_time_no_skipping_granularity"] = p[8]
+    p[0]["max_delay_scope"] = p[10]
+    p[0]["attributes"] = p[12]
+    p[0]["unique"] = p[16] 
 
 def p_gbool(p):
     '''gbool	: 	SKIPPING NUMBER
@@ -63,7 +64,7 @@ parser = yacc.yacc()
 
 s = '''
 CREATE EVENTTYPE RentBike (
-ERT 1 NOSKIPPING
+ERT 1 NOSKIPPING 1
 MAXDELAY 5
 (Bid:str, Cid:str)
 UNIQUE (Bid, Cid, event_time))
