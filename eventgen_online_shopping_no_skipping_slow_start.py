@@ -2,12 +2,13 @@ import random
 import numpy as np
 import time
 import sys
-
+import json
+import collections
 def gen_next(curr_event, id_chain):
 	event_type = curr_event["event_type_name"]
 #	if (event_type != "place_order"): print(event_type)
 	z = curr_event["event_time"]
-	next_event = {}
+	next_event = {}	
 	if event_type == "place_order":
 		next_event = {"event_type_name": "picking", 'order_id': curr_event["order_id"], 'item_id': "cast iron", 'warehouse_id': id_chain["warehouse_id"], "package_id": id_chain["package_id"], "event_time": z + np.clip((int(xmax*(0.5+np.random.normal(0,1)))),1,xmax-1)}
 		id_chain["warehouse_id"] += random.randint(1,5)
@@ -25,7 +26,7 @@ def gen_next(curr_event, id_chain):
 	elif event_type == "ship":
 		next_event = {"event_type_name": "deliver", 'package_id': curr_event["package_id"], 'carrier_id': curr_event["carrier_id"], 'tracking_number': curr_event["tracking_number"], "event_time": z + np.clip((int(mmax*(0.5+np.random.normal(0,1)))),1,mmax-1)}
 	elif event_type == "deliver":
-		next_event = {"confirm_id": 'c'+str(curr_event["package_id"]), "event_type_name": "confirm_delivery", 'package_id': curr_event["package_id"], 'carrier_id': curr_event["carrier_id"], 'tracking_number': curr_event["tracking_number"], "event_time": z+1}
+		next_event = {"event_type_name": "confirm_delivery", "confirm_id": 'c'+str(curr_event["package_id"]), 'package_id': curr_event["package_id"], 'carrier_id': curr_event["carrier_id"], 'tracking_number': curr_event["tracking_number"], "event_time": z+1}
 	else:
 		print(f"Error: {event_type} is not a continuing event for this workflow")
 	return next_event
@@ -35,20 +36,29 @@ if __name__ == '__main__':
 		batch_size, fid = int(sys.argv[1]), sys.argv[2]
 	else:
 		batch_size, fid = 100, 1
+	slow_start_batches, slow_start_ratio = 8, 0.125
 	random.seed(fid)
 	t1 = time.time()
 	# One day has 86400 seconds
 	day = 86400
+	batches = 1000
 	xmax, ymax, zmax, mmax = 5, 5, 30, 10
 	id_chain = {"order_id": 0, "package_id": 0, "warehouse_id": 0, "carrier_id": 0, "tracking_number": 0} 
-	res = [[] for y in range(100)]
+	res = [[] for y in range(batches)]
 	default_item_id_quantity_mapping = "{'cast iron': 2}"
 
-	for z in range(100):
+	for z in range(batches):
 		#If not full fill rest with place_order
+		curr_batch_size = batch_size
+		if z < slow_start_batches:
+			curr_batch_size *= slow_start_ratio
 		if len(res[z]) < batch_size:
-			for i in range(batch_size-len(res[z])):
-				place_order = {"event_type_name": "place_order", "user_id": str(i), 'order_id': str(id_chain["order_id"]), 'item_id_quantity_mapping': default_item_id_quantity_mapping, 'payment_method': 'apple pay', 'payment_amount': random.randint(90,10e5)/100,'payment_tracking_id': str(id_chain["package_id"]), "event_time": z}
+			factor = batch_size-len(res[z])
+			if z < slow_start_batches:
+				factor = min(curr_batch_size, factor)
+			factor = int(factor)
+			for i in range(factor):
+				place_order = {"event_type_name": "place_order", "user_id": str(i), 'order_id': str(id_chain["order_id"]), 'item_id_quantity_mapping': default_item_id_quantity_mapping, 'payment_method': 'apple pay', 'payment_amount': random.randint(90,10e5)/batches,'payment_tracking_id': str(id_chain["package_id"]), "event_time": z}
 				id_chain["order_id"] += random.randint(1,5)
 				res[z].append(place_order)
 		for curr_event in res[z]:
@@ -57,14 +67,14 @@ if __name__ == '__main__':
 			next_event = gen_next(curr_event, id_chain)
 			id_chain["order_id"] += random.randint(1,5)
 			next_z = next_event["event_time"]
-			if next_z < 100:
+			if next_z < batches:
 				if len(res[next_z]) < batch_size: 
 					res[next_z].append(next_event)
 
-loc = f"./sample_events_no_skipping/online_shopping_events-batch_size_{batch_size}-{fid}.txt"
+loc = f"./sample_events_no_skipping_slow_start/online_shopping_events-batch_size_{batch_size}-batches_{batches}-{fid}.txt"
 with open(loc, "a") as f:
 	batch = ""
-	for i in range(100):
+	for i in range(batches):
 		for currd in res[i]:
 			s = "{"	
 			for k,v in currd.items():
@@ -78,6 +88,16 @@ with open(loc, "a") as f:
 #sanity check for fixed batch_size
 #size_arr = [len(x) for x in res]
 #print(size_arr)
+#see event ratio within each batch
+sanitized_res = [[y["event_type_name"] for y in x] for x in res]
+freqs = []
+for sr in sanitized_res:
+	freqs.append(collections.Counter(sr))
+ratio_loc = f"./ratios/online_shopping_events-batch_size_{batch_size}-batches_{batches}-{fid}_ratios.txt"
+for freq in freqs:
+	with open(ratio_loc, "a") as f:
+		f.write(json.dumps(freq))
+		f.write('\n')
 print(f"Time taken for batch_size_{batch_size}-{fid}: {time.time() - t1}s")
 '''
 Events:
